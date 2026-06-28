@@ -1,6 +1,21 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestScanContentForBrand(t *testing.T) {
 	forbidden := []string{"gentle-qa", "gentle_qa"}
@@ -42,5 +57,59 @@ func TestScanContentForBrandReportsLineAndText(t *testing.T) {
 	}
 	if got[0].text != "gentle-qa" {
 		t.Errorf("text = %q, quiero %q", got[0].text, "gentle-qa")
+	}
+}
+
+func TestBrandScanTargets(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/SKILL.md", "x")
+	mustWrite(t, "skills/qa/sub/ref.md", "x")
+	mustWrite(t, "generic/persona-sdet.md", "x")
+	mustWrite(t, "generic/notmd.go", "x") // overlayFile no-markdown: se ignora
+
+	m := &manifest{NetNewDirs: []string{"skills/qa", "skills/falta"}}
+	m.OverlayFiles = []string{"generic/persona-sdet.md", "generic/notmd.go"}
+
+	got, err := brandScanTargets(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Espera el contenido del dir net-new (recursivo) + solo el .md del overlay;
+	// el dir faltante no rompe, el .go se excluye.
+	if len(got) != 3 {
+		t.Fatalf("quiero 3 targets, tengo %d: %v", len(got), got)
+	}
+}
+
+func TestDetectBrandLeaks(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/SKILL.md", "author: adapted for gentle-qa\n")
+	mustWrite(t, "skills/qa/clean.md", "todo gentle-qe aquí\n")
+	mustWrite(t, "generic/persona-sdet.md", "persona ok, ver bead gentle-qa-i9p\n")
+
+	m := &manifest{NetNewDirs: []string{"skills/qa"}}
+	m.OverlayFiles = []string{"generic/persona-sdet.md"}
+	m.BrandLeak.Forbidden = []string{"gentle-qa", "gentle_qa"}
+
+	leaks, err := detectBrandLeaks(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaks) != 1 {
+		t.Fatalf("quiero 1 fuga, tengo %d: %v", len(leaks), leaks)
+	}
+	if !strings.Contains(leaks[0], "SKILL.md") {
+		t.Errorf("la fuga debería apuntar a SKILL.md, no: %q", leaks[0])
+	}
+}
+
+func TestDetectBrandLeaksSinForbidden(t *testing.T) {
+	m := &manifest{NetNewDirs: []string{"."}}
+	leaks, err := detectBrandLeaks(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leaks != nil {
+		t.Fatalf("sin forbidden no debe escanear nada, tengo: %v", leaks)
 	}
 }

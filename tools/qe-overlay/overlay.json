@@ -23,6 +23,14 @@
   ],
   "brandingAnchors": [
     {
+      "file": "internal/branding/branding.go",
+      "mustContain": "EduardoVeraE"
+    },
+    {
+      "file": "internal/branding/branding.go",
+      "mustContain": "gentle-qe"
+    },
+    {
       "file": "internal/update/registry.go",
       "mustContain": "branding.Owner"
     },
