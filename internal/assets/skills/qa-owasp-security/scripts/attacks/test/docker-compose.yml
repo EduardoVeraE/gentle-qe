@@ -1,0 +1,11 @@
+# DVWA target for the qa-owasp-security validation harness.
+# Image vulnerables/web-dvwa is amd64-only; on Apple Silicon it runs via
+# Rosetta. The platform pin is explicit so docker-compose does not warn.
+services:
+  dvwa:
+    image: vulnerables/web-dvwa
+    platform: linux/amd64
+    container_name: qa-owasp-validation-dvwa
+    ports:
+      - "8080:80"
+    restart: "no"
