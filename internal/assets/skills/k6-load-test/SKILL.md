@@ -3,7 +3,7 @@ name: k6-load-test
 description: "Trigger: k6, load test, stress, spike, soak, SLO thresholds, performance. Write k6 performance test scenarios for QE."
 license: Apache-2.0
 metadata:
-  author: dengineproblem (adapted for gentle-qa)
+  author: dengineproblem (adapted for gentle-qe)
   version: "1.1"
   source: https://skills.sh/dengineproblem/agents-monorepo/k6-load-test
 ---
