@@ -77,6 +77,10 @@
       "mustContain": "qeDefaultPreset"
     }
   ],
+  "brandLeak": {
+    "_comment": "Persigue SOLO la marca vieja del fork (gentle-qa, ya renombrada a gentle-qe) en el contenido propio del overlay (assets net-new + markdown). NO incluir 'gentle-ai': se mantiene a propósito (módulo Go, atribución upstream); tocarlo rompe el ecosistema. Los IDs de beads gentle-qa-xxx se ignoran automáticamente.",
+    "forbidden": ["gentle-qa", "gentle_qa"]
+  },
   "upstreamSkills": {
     "dir": "internal/assets/skills",
     "known": [
