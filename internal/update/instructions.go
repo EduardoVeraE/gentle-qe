@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
 )
 
 // updateHint returns a platform-specific instruction string for updating the given tool.
 func updateHint(tool ToolInfo, profile system.PlatformProfile) string {
 	switch tool.Name {
-	case "gentle-ai":
+	case branding.Product: // overlay Gentle-QE (ancla qe-overlay)
 		return gentleAIHint(profile)
 	case "engram":
 		return engramHint(profile)
@@ -31,14 +32,14 @@ func openCodeRegisteredNotMaterializedHint(tool ToolInfo) string {
 	return fmt.Sprintf("registered in ~/.config/opencode/tui.json; pending npm dependency materialization for %s. Run gentle-ai upgrade to install/update ~/.config/opencode dependencies, then restart or reload OpenCode; if it stays pending, check OpenCode logs for package or peer dependency errors.", pkg)
 }
 
-func gentleAIHint(profile system.PlatformProfile) string {
+func gentleAIHint(profile system.PlatformProfile) string { // overlay Gentle-QE (ancla qe-overlay)
 	switch profile.OS {
 	case "darwin":
-		return "brew upgrade gentle-ai"
+		return "brew upgrade " + branding.Product
 	case "linux":
-		return "curl -fsSL https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.sh | bash"
+		return fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/%s/%s/main/scripts/install.sh | bash", branding.Owner, branding.Repo)
 	case "windows":
-		return "irm https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.ps1 | iex"
+		return fmt.Sprintf("irm https://raw.githubusercontent.com/%s/%s/main/scripts/install.ps1 | iex", branding.Owner, branding.Repo)
 	default:
 		return ""
 	}

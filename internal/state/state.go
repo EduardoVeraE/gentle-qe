@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// stateDir NO se rebrandea: el directorio ".gentle-ai" está hardcodeado en ~15
+// archivos de producción + tests; rebrandearlo introduciría fricción de sync en
+// todo el árbol y exigiría un migration shim. Queda como dotfile interno upstream.
 const stateDir = ".gentle-ai"
 const stateFile = "state.json"
 

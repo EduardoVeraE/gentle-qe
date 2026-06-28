@@ -4615,8 +4615,14 @@ func TestPersonaScreenRecomputesComponentsWhenPresetAlreadySet(t *testing.T) {
 		t.Fatal("setup: expected ComponentPersona in initial components")
 	}
 
-	// Move cursor to PersonaCustom and confirm.
-	m.Cursor = len(screens.PersonaOptions()) - 1
+	// Move cursor to PersonaCustom and confirm. Locate it by index instead of
+	// assuming it is the last option (the Gentle-QE overlay appends PersonaSDET).
+	for i, p := range screens.PersonaOptions() {
+		if p == model.PersonaCustom {
+			m.Cursor = i
+			break
+		}
+	}
 	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	state := updated.(Model)
 
