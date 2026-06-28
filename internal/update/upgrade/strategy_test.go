@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"errors"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
 	"github.com/gentleman-programming/gentle-ai/internal/update"
 	"net/http"
@@ -106,9 +107,9 @@ func TestRunStrategy_BetaGentleAISelfUpgradeUsesGoInstallMain(t *testing.T) {
 
 	r := update.UpdateResult{
 		Tool: update.ToolInfo{
-			Name:          "gentle-ai",
-			Owner:         "Gentleman-Programming",
-			Repo:          "gentle-ai",
+			Name:          branding.Product, // overlay Gentle-QE: identidad del binario principal del fork
+			Owner:         branding.Owner,
+			Repo:          branding.Repo,
 			InstallMethod: update.InstallBinary,
 		},
 		LatestVersion: "main@972997650b51",

@@ -1,0 +1,108 @@
+{
+  "_comment": "Manifiesto del overlay SDET/QE (Gentle-QE). Fuente de verdad de qué constituye el overlay sobre el upstream. Lo consume tools/qe-overlay (verify/accept). Ver el plan de overlay sostenible.",
+  "netNewDirs": [
+    "internal/assets/skills/qa-manual-istqb",
+    "internal/assets/skills/qa-owasp-security",
+    "internal/assets/skills/api-testing",
+    "internal/assets/skills/playwright-e2e-testing",
+    "internal/assets/skills/a11y-playwright-testing",
+    "internal/assets/skills/k6-load-test",
+    "internal/assets/skills/selenium-e2e-java"
+  ],
+  "overlayFiles": [
+    "internal/branding/branding.go",
+    "internal/model/types_qe.go",
+    "internal/catalog/skills_qe.go",
+    "internal/components/skills/presets_qe.go",
+    "internal/components/persona/inject_qe.go",
+    "internal/tui/screens/preset_qe.go",
+    "internal/tui/screens/persona_qe.go",
+    "internal/cli/qe_defaults.go",
+    "internal/assets/generic/persona-sdet.md",
+    "internal/assets/generic/lineamientos-personales.md"
+  ],
+  "brandingAnchors": [
+    {
+      "file": "internal/update/registry.go",
+      "mustContain": "branding.Owner"
+    },
+    {
+      "file": "internal/update/check.go",
+      "mustContain": "branding.Repo"
+    },
+    {
+      "file": "internal/update/advisory.go",
+      "mustContain": "branding.Owner"
+    },
+    {
+      "file": "internal/update/instructions.go",
+      "mustContain": "branding.Product"
+    },
+    {
+      "file": "internal/update/upgrade/strategy.go",
+      "mustContain": "branding.Product"
+    },
+    {
+      "file": "internal/app/app.go",
+      "mustContain": "branding.Product"
+    }
+  ],
+  "inlineAnchors": [
+    {
+      "file": "internal/components/skills/presets.go",
+      "mustContain": "qeSkillsForPreset"
+    },
+    {
+      "file": "internal/components/skills/presets.go",
+      "mustContain": "qeAllSkills"
+    },
+    {
+      "file": "internal/components/persona/inject.go",
+      "mustContain": "model.PersonaSDET"
+    },
+    {
+      "file": "internal/tui/screens/preset.go",
+      "mustContain": "qePresetOptions"
+    },
+    {
+      "file": "internal/tui/screens/persona.go",
+      "mustContain": "qePersonaOptions"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "model.PresetQESDET"
+    },
+    {
+      "file": "internal/cli/validate.go",
+      "mustContain": "qeDefaultPreset"
+    }
+  ],
+  "upstreamSkills": {
+    "dir": "internal/assets/skills",
+    "known": [
+      "_shared",
+      "branch-pr",
+      "chained-pr",
+      "cognitive-doc-design",
+      "comment-writer",
+      "go-testing",
+      "hermes-ephemeral-delegation",
+      "issue-creation",
+      "judgment-day",
+      "sdd-apply",
+      "sdd-archive",
+      "sdd-design",
+      "sdd-explore",
+      "sdd-init",
+      "sdd-onboard",
+      "sdd-propose",
+      "sdd-spec",
+      "sdd-tasks",
+      "sdd-verify",
+      "skill-creator",
+      "skill-improver",
+      "skill-registry",
+      "work-unit-commits"
+    ]
+  }
+}

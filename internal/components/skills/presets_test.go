@@ -58,8 +58,10 @@ func TestSkillsForPresetFullIncludesAll(t *testing.T) {
 	skills := SkillsForPreset(model.PresetFullGentleman)
 	all := AllSkillIDs()
 
-	if len(skills) != len(all) {
-		t.Fatalf("full preset skills len = %d, all skills len = %d", len(skills), len(all))
+	// El overlay Gentle-QE: AllSkillIDs incluye además las skills QE, que NO
+	// forman parte del preset upstream full-gentleman (viven en los presets QE).
+	if len(all) != len(skills)+len(qaSkills) {
+		t.Fatalf("all skills len = %d, want full preset (%d) + QE skills (%d)", len(all), len(skills), len(qaSkills))
 	}
 }
 

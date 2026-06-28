@@ -585,15 +585,15 @@ func NewModel(detection system.DetectionResult, version string, installState ...
 		s = installState[0]
 	}
 	agents := preselectedAgents(detection, s)
-	components := componentsForPreset(model.PresetFullGentleman, model.PersonaGentleman)
+	components := componentsForPreset(model.PresetQESDET, model.PersonaSDET) // overlay Gentle-QE (ancla qe-overlay)
 	if isPiOnlyAgents(agents) {
 		components = piOnlyComponents()
 	}
 
 	selection := model.Selection{
 		Agents:                 agents,
-		Persona:                model.PersonaGentleman,
-		Preset:                 model.PresetFullGentleman,
+		Persona:                model.PersonaSDET,
+		Preset:                 model.PresetQESDET,
 		Components:             components,
 		ClaudeModelAssignments: installStateClaudeAssignments(s.ClaudeModelAssignments),
 		ClaudePhaseAssignments: installStateClaudePhaseAssignments(s.ClaudePhaseAssignments),
