@@ -8,12 +8,13 @@ import (
 )
 
 func PresetOptions() []model.PresetID {
-	return []model.PresetID{
+	opts := []model.PresetID{
 		model.PresetFullGentleman,
 		model.PresetEcosystemOnly,
 		model.PresetMinimal,
 		model.PresetCustom,
 	}
+	return append(opts, qePresetOptions()...) // overlay Gentle-QE (ancla qe-overlay)
 }
 
 var presetDescriptions = map[model.PresetID]string{

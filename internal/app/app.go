@@ -12,6 +12,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/cli"
 	componentuninstall "github.com/gentleman-programming/gentle-ai/internal/components/uninstall"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
@@ -68,7 +69,7 @@ func RunArgs(args []string, stdout io.Writer) error {
 	if len(args) > 0 {
 		switch args[0] {
 		case "version", "--version", "-v":
-			_, _ = fmt.Fprintf(stdout, "gentle-ai %s\n", Version)
+			_, _ = fmt.Fprintf(stdout, "%s %s\n", branding.Product, Version)
 			return nil
 		case "help", "--help", "-h":
 			printHelp(stdout, Version)
