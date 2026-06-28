@@ -22,3 +22,16 @@ if command -v bd >/dev/null 2>&1; then
   if [ $_bd_exit -ne 0 ]; then exit $_bd_exit; fi
 fi
 # --- END BEADS INTEGRATION v0.62.0 ---
+
+# --- BEGIN GENTLE-QE OVERLAY GUARD ---
+# Verifica la integridad del overlay SDET antes de push (mismo guard que CI: job
+# overlay-guard). Saltar con: SKIP_OVERLAY_GUARD=1 git push
+if [ "${SKIP_OVERLAY_GUARD:-0}" != "1" ] && command -v go >/dev/null 2>&1; then
+  echo "gentle-qe: verificando overlay SDET (qe-overlay verify)…"
+  if ! go run ./tools/qe-overlay verify; then
+    echo >&2 "gentle-qe: overlay roto o con drift — push abortado."
+    echo >&2 "          corrige el overlay o fuerza con SKIP_OVERLAY_GUARD=1 git push"
+    exit 1
+  fi
+fi
+# --- END GENTLE-QE OVERLAY GUARD ---
