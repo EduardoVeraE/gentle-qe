@@ -1,6 +1,6 @@
 version: 2
 
-project_name: gentle-ai
+project_name: gentle-qe
 
 before:
   hooks:
@@ -8,7 +8,7 @@ before:
 
 builds:
   - main: ./cmd/gentle-ai
-    binary: gentle-ai
+    binary: gentle-qe
     env:
       - CGO_ENABLED=0
     goos:
@@ -41,25 +41,31 @@ changelog:
       - "^test:"
       - "^ci:"
 
-brews:
+# Homebrew cask (no formula): el binario no está firmado, así que se distribuye
+# como cask y se le quita el atributo de cuarentena en el postflight.
+homebrew_casks:
   - repository:
-      owner: Gentleman-Programming
+      owner: EduardoVeraE
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    name: gentle-ai
-    homepage: "https://github.com/Gentleman-Programming/gentle-ai"
-    description: "Gentle-AI — Ecosystem, Frameworks, Workflows for AI coding agents."
-    license: "MIT"
-    commit_msg_template: "chore: update gentle-ai formula to {{ .Tag }}"
+    name: gentle-qe
+    homepage: "https://github.com/EduardoVeraE/gentle-qe"
+    description: "Gentle-QE — Unified AI Ecosystem for Testing and Reliability."
+    commit_msg_template: "chore: update gentle-qe cask to {{ .Tag }}"
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gentle-qe"]
+          end
 
 scoops:
   - repository:
-      owner: Gentleman-Programming
+      owner: EduardoVeraE
       name: scoop-bucket
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    name: gentle-ai
-    homepage: "https://github.com/Gentleman-Programming/gentle-ai"
-    description: "Gentle-AI — Ecosystem, Frameworks, Workflows for AI coding agents."
+    name: gentle-qe
+    homepage: "https://github.com/EduardoVeraE/gentle-qe"
+    description: "Gentle-QE — Unified AI Ecosystem for Testing and Reliability."
     license: MIT
-    commit_msg_template: "chore: update gentle-ai to {{ .Tag }}"
+    commit_msg_template: "chore: update gentle-qe to {{ .Tag }}"
