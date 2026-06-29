@@ -375,7 +375,7 @@ func homebrewFailureAdvice(toolName string, output string) string {
 			flag = "--formula"
 			artifact = "formula"
 		}
-		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this Gentle AI %s, then retry:\n  brew trust %s %s\n  brew upgrade %s", artifact, flag, ref, toolName)
+		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this %s %s, then retry:\n  brew trust %s %s\n  brew upgrade %s", branding.Display, artifact, flag, ref, toolName)
 	}
 
 	if strings.Contains(lower, "bubblewrap is installed but cannot create a rootless sandbox") ||
@@ -575,7 +575,7 @@ func installerUpgrade(ctx context.Context, tool update.ToolInfo, releaseURL stri
 	cmd := execCommand("cmd", installerUpgradeArgs(tmpFile.Name(), beta)...)
 
 	fmt.Printf("\nLaunching installer for %s...\n", tool.Name)
-	fmt.Println("gentle-ai will now exit so the installer can replace the binary.")
+	fmt.Println(branding.Product + " will now exit so the installer can replace the binary.")
 
 	if err := cmd.Start(); err != nil {
 		return false, fmt.Errorf("failed to start installer: %w", err)

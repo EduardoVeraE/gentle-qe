@@ -69,7 +69,7 @@ curl -fsSL https://raw.githubusercontent.com/EduardoVeraE/gentle-qe/main/scripts
 ### Windows
 
 ```powershell
-scoop bucket add eduardovera https://github.com/EduardoVeraE/scoop-bucket
+scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket
 scoop install gentle-qe
 ```
 
@@ -95,10 +95,10 @@ Run `gentle-qe doctor` at any time for a read-only health check of your ecosyste
 ```bash
 # macOS / Linux
 brew tap EduardoVeraE/homebrew-tap
-brew install --cask eduardovera/homebrew-tap/gentle-qe
+brew install --cask EduardoVeraE/homebrew-tap/gentle-qe
 
 # Windows
-scoop bucket add eduardovera https://github.com/EduardoVeraE/scoop-bucket
+scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket
 scoop install gentle-qe
 ```
 
@@ -179,10 +179,6 @@ These guides describe the shared Gentle-AI foundation that Gentle-QE builds on:
 ## Credits & Upstream
 
 Gentle-QE is a fork of **[Gentleman-Programming/gentle-ai](https://github.com/Gentleman-Programming/gentle-ai)** and tracks it continuously. All the ecosystem foundations — memory, SDD, skills, MCP, persona, multi-agent support and every harness — are the work of the Gentle-AI community.
-
-<a href="https://github.com/Gentleman-Programming/gentle-ai/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Gentleman-Programming/gentle-ai" />
-</a>
 
 The QE/SDET overlay (testing skills, SDET persona, QE presets) is maintained by [@EduardoVeraE](https://github.com/EduardoVeraE).
 

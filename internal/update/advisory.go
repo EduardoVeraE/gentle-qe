@@ -63,7 +63,7 @@ func FetchAdvisory(ctx context.Context) (Advisory, bool) {
 	if err != nil {
 		return Advisory{}, false
 	}
-	req.Header.Set("User-Agent", "gentle-ai-advisory-check")
+	req.Header.Set("User-Agent", branding.Product+"-advisory-check")
 
 	resp, err := advisoryHTTPClient.Do(req)
 	if err != nil {
