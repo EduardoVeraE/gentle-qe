@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 	"github.com/gentleman-programming/gentle-ai/internal/opencode"
 	"github.com/gentleman-programming/gentle-ai/internal/tui/styles"
@@ -680,7 +681,7 @@ func renderPhaseList(
 	if len(state.AvailableIDs) == 0 {
 		b.WriteString(styles.WarningStyle.Render("OpenCode has not been run yet — model cache not found."))
 		b.WriteString("\n")
-		b.WriteString(styles.SubtextStyle.Render("Run 'opencode' once, then re-run 'gentle-ai sync' to assign models."))
+		b.WriteString(styles.SubtextStyle.Render("Run 'opencode' once, then re-run '" + branding.Product + " sync' to assign models."))
 		b.WriteString("\n")
 		b.WriteString(styles.SubtextStyle.Render("Using default model assignments for now."))
 		b.WriteString("\n\n")
