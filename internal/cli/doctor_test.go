@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // --- checkOneTool ---
@@ -478,7 +480,7 @@ func TestRunDoctor_IntegrationAllMocked(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "gentle-ai doctor") {
+	if !strings.Contains(output, branding.Product+" doctor") {
 		t.Error("expected header in output")
 	}
 	if !strings.Contains(output, "Summary:") {
