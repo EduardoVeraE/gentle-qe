@@ -23,6 +23,7 @@ import (
 	"github.com/gentleman-programming/gentle-ai/internal/agents"
 	"github.com/gentleman-programming/gentle-ai/internal/assets"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/components/gga"
 	"github.com/gentleman-programming/gentle-ai/internal/components/sdd"
 	"github.com/gentleman-programming/gentle-ai/internal/components/skills"
@@ -455,7 +456,7 @@ func ExecuteWithOptions(ctx context.Context, results []update.UpdateResult, prof
 	backupWarning := ""
 	if !dryRun && len(executable) > 0 && !options.SkipBackup {
 		sp := NewSpinner(pw, "Creating pre-upgrade backup")
-		snapshotDir := filepath.Join(homeDir, ".gentle-ai", "backups",
+		snapshotDir := filepath.Join(homeDir, branding.StateDir, "backups",
 			fmt.Sprintf("upgrade-%s", time.Now().UTC().Format("20060102T150405Z")))
 		manifest, err := snapshotCreator(snapshotDir, configPathsForBackup(homeDir, options.BackupDiagnostics))
 		if err != nil {
@@ -481,7 +482,7 @@ func ExecuteWithOptions(ctx context.Context, results []update.UpdateResult, prof
 		// snapshot fails due to disk pressure caused by prior accumulated
 		// backups, pruning is the recovery path. Non-fatal: a prune failure
 		// must not prevent the upgrade from completing.
-		backupRoot := filepath.Join(homeDir, ".gentle-ai", "backups")
+		backupRoot := filepath.Join(homeDir, branding.StateDir, "backups")
 		if _, pruneErr := backup.Prune(backupRoot, backup.DefaultRetentionCount); pruneErr != nil {
 			log.Printf("backup: prune: %v", pruneErr)
 		}
@@ -616,7 +617,7 @@ func effectiveMethod(tool update.ToolInfo, profile system.PlatformProfile) updat
 		return update.InstallBrew
 	}
 	// Use installer method for gentle-ai on Windows (launches PowerShell installer).
-	if profile.OS == "windows" && tool.Name == "gentle-ai" {
+	if profile.OS == "windows" && tool.Name == branding.Product {
 		return update.InstallInstaller
 	}
 	if profile.GoAvailable && tool.GoImportPath != "" {

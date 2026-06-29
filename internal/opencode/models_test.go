@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 const fixtureJSON = `{
@@ -377,7 +379,7 @@ func TestDefaultVariantsCachePath(t *testing.T) {
 	if got == "" {
 		t.Fatal("DefaultVariantsCachePath() returned empty string")
 	}
-	if !strings.HasSuffix(got, filepath.Join(".gentle-ai", "cache", "model-variants.json")) {
+	if !strings.HasSuffix(got, filepath.Join(branding.StateDir, "cache", "model-variants.json")) {
 		t.Fatalf("expected path suffix .gentle-ai/cache/model-variants.json, got %q", got)
 	}
 	legacy := filepath.Join(".cache", "gentle-ai")

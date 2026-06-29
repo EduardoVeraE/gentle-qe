@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // RestoreFunc is the function signature for restoring a backup from its manifest.
@@ -223,7 +225,7 @@ func listBackupsFromDir(homeDir string) []backup.Manifest {
 
 // backupRootDir returns the path to the backup directory under homeDir.
 func backupRootDir(homeDir string) string {
-	return homeDir + "/.gentle-ai/backups"
+	return filepath.Join(homeDir, branding.StateDir, "backups")
 }
 
 // defaultRestorer returns the standard backup.RestoreService.Restore function.

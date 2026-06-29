@@ -334,7 +334,7 @@ func checkEngramReachable() CheckResult {
 // checkDiskSpace reports free space on the ~/.gentle-ai filesystem.
 func checkDiskSpace(homeDir string) CheckResult {
 	const name = "disk:space"
-	dir := filepath.Join(homeDir, ".gentle-ai")
+	dir := filepath.Join(homeDir, branding.StateDir)
 
 	free, err := availableBytesFn(dir)
 	if err != nil {

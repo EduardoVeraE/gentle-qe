@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // runtimeGOOS and syncDirFn are package-level vars so tests can override them
@@ -61,7 +63,7 @@ func WriteFileAtomic(path string, content []byte, perm fs.FileMode) (WriteResult
 		return WriteResult{}, err
 	}
 
-	tmp, err := os.CreateTemp(dir, ".gentle-ai-*.tmp")
+	tmp, err := os.CreateTemp(dir, "."+branding.Product+"-*.tmp")
 	if err != nil {
 		return WriteResult{}, fmt.Errorf("create temp file for %q: %w", path, err)
 	}

@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // TestMergeAgents verifies that MergeAgents appends new agents to existing
@@ -166,7 +168,7 @@ func TestWriteCreatesStateDir(t *testing.T) {
 func TestWriteStateFilePath(t *testing.T) {
 	home := t.TempDir()
 	got := Path(home)
-	want := filepath.Join(home, ".gentle-ai", "state.json")
+	want := filepath.Join(home, branding.StateDir, "state.json")
 	if got != want {
 		t.Errorf("Path() = %q, want %q", got, want)
 	}

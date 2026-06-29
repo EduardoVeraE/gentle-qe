@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/update"
 	"github.com/gentleman-programming/gentle-ai/internal/update/upgrade"
 )
@@ -27,7 +28,7 @@ func TestRenderUpgrade_CheckingState(t *testing.T) {
 func TestRenderUpgrade_AllUpToDate(t *testing.T) {
 	results := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "v1.0.0",
 			LatestVersion:    "v1.0.0",
 			Status:           update.UpToDate,
@@ -47,7 +48,7 @@ func TestRenderUpgrade_AllUpToDate(t *testing.T) {
 func TestRenderUpgrade_UpdatesAvailable(t *testing.T) {
 	results := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "v1.0.0",
 			LatestVersion:    "v2.0.0",
 			Status:           update.UpdateAvailable,
@@ -56,7 +57,7 @@ func TestRenderUpgrade_UpdatesAvailable(t *testing.T) {
 
 	out := RenderUpgrade(results, nil, nil, false, true /*updateCheckDone*/, 0, 0)
 
-	if !strings.Contains(out, "gentle-ai") {
+	if !strings.Contains(out, branding.Product) {
 		t.Errorf("RenderUpgrade(updates available) should contain tool name 'gentle-ai'; got:\n%s", out)
 	}
 	if !strings.Contains(out, "v1.0.0") || !strings.Contains(out, "v2.0.0") {
@@ -70,7 +71,7 @@ func TestRenderUpgrade_ResultState(t *testing.T) {
 	report := &upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
 			{
-				ToolName:   "gentle-ai",
+				ToolName:   branding.Product,
 				OldVersion: "v1.0.0",
 				NewVersion: "v2.0.0",
 				Status:     upgrade.UpgradeSucceeded,
@@ -82,7 +83,7 @@ func TestRenderUpgrade_ResultState(t *testing.T) {
 
 	lower := strings.ToLower(out)
 	if !strings.Contains(lower, "upgraded") && !strings.Contains(lower, "summary") &&
-		!strings.Contains(out, "gentle-ai") {
+		!strings.Contains(out, branding.Product) {
 		t.Errorf("RenderUpgrade(report) should show upgrade results; got:\n%s", out)
 	}
 }
@@ -132,11 +133,13 @@ func TestRenderUpgrade_ErrorState(t *testing.T) {
 // containing ": " is split so the command appears on its own line and is not clipped
 // by BubbleTea at the terminal width.
 func TestRenderUpgrade_LongManualHintSplitsAcrossLines(t *testing.T) {
-	longHint := `upgrade "gentle-ai" on Windows requires manual update: irm https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.ps1 | iex`
+	// Hint de test deliberadamente largo para ejercitar el wrapping; el texto es
+	// dato de prueba (no visible al usuario), por eso conserva la URL larga original.
+	longHint := `upgrade the tool on Windows requires manual update: irm https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.ps1 | iex`
 	report := &upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
 			{
-				ToolName:   "gentle-ai",
+				ToolName:   branding.Product,
 				OldVersion: "v1.0.0",
 				NewVersion: "v1.1.0",
 				Status:     upgrade.UpgradeSkipped,

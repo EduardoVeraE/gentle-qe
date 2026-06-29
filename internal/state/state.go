@@ -5,12 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
-// stateDir NO se rebrandea: el directorio ".gentle-ai" está hardcodeado en ~15
-// archivos de producción + tests; rebrandearlo introduciría fricción de sync en
-// todo el árbol y exigiría un migration shim. Queda como dotfile interno upstream.
-const stateDir = ".gentle-ai"
+// stateDir es el dotfile de estado del fork, con fuente ÚNICA en branding.StateDir
+// (".gentle-qe"). Todas las rutas del árbol derivan del paquete branding, así que el
+// rebrand es de un solo punto: un merge de upstream que reintroduzca ".gentle-ai"
+// queda detectado por el guard (tools/qe-overlay) en vez de pasar silencioso.
+const stateDir = branding.StateDir
 const stateFile = "state.json"
 
 // ModelAssignmentState is the JSON-serialisable form of a provider+model pair

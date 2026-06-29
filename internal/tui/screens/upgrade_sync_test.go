@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/update"
 	"github.com/gentleman-programming/gentle-ai/internal/update/upgrade"
 )
@@ -100,7 +101,7 @@ func TestRenderUpgradeSync_CombinedResult(t *testing.T) {
 func TestRenderUpgradeSync_LongManualHintUsesWidth(t *testing.T) {
 	longHint := `upgrade "gentle-ai" on Windows requires manual update: irm https://raw.githubusercontent.com/Gentleman-Programming/gentle-ai/main/scripts/install.ps1 | iex`
 	report := &upgrade.UpgradeReport{Results: []upgrade.ToolUpgradeResult{
-		{ToolName: "gentle-ai", Status: upgrade.UpgradeSkipped, ManualHint: longHint},
+		{ToolName: branding.Product, Status: upgrade.UpgradeSkipped, ManualHint: longHint},
 	}}
 
 	out := stripANSI(RenderUpgradeSyncWithWidth(nil, report, nil, nil, nil, false, true, 0, 0, 80))
@@ -130,7 +131,7 @@ func TestRenderUpgradeSync_LongManualHintUsesWidth(t *testing.T) {
 
 func TestRenderUpgradeSync_SkipsSyncWhenGentleAIUpgraded(t *testing.T) {
 	report := &upgrade.UpgradeReport{Results: []upgrade.ToolUpgradeResult{
-		{ToolName: "gentle-ai", OldVersion: "v1.36.1", NewVersion: "v1.36.2", Status: upgrade.UpgradeSucceeded},
+		{ToolName: branding.Product, OldVersion: "v1.36.1", NewVersion: "v1.36.2", Status: upgrade.UpgradeSucceeded},
 	}}
 
 	out := RenderUpgradeSync(nil, report, nil, nil, nil, false, true, 0, 0)
@@ -138,7 +139,7 @@ func TestRenderUpgradeSync_SkipsSyncWhenGentleAIUpgraded(t *testing.T) {
 	if !strings.Contains(lower, "sync skipped") {
 		t.Fatalf("RenderUpgradeSync() should say sync was skipped after gentle-ai upgrade:\n%s", out)
 	}
-	if !strings.Contains(lower, "restart gentle-ai") {
+	if !strings.Contains(lower, "restart "+branding.Product) {
 		t.Fatalf("RenderUpgradeSync() should ask for restart after gentle-ai upgrade:\n%s", out)
 	}
 	if strings.Contains(lower, "no files needed updating") {
@@ -148,11 +149,11 @@ func TestRenderUpgradeSync_SkipsSyncWhenGentleAIUpgraded(t *testing.T) {
 
 func TestRenderUpgrade_ShowsRestartNoticeWhenGentleAIUpgraded(t *testing.T) {
 	report := &upgrade.UpgradeReport{Results: []upgrade.ToolUpgradeResult{
-		{ToolName: "gentle-ai", OldVersion: "v1.36.1", NewVersion: "v1.36.2", Status: upgrade.UpgradeSucceeded},
+		{ToolName: branding.Product, OldVersion: "v1.36.1", NewVersion: "v1.36.2", Status: upgrade.UpgradeSucceeded},
 	}}
 
 	out := RenderUpgrade(nil, report, nil, false, true, 0, 0)
-	if !strings.Contains(strings.ToLower(out), "restart gentle-ai") {
+	if !strings.Contains(strings.ToLower(out), "restart "+branding.Product) {
 		t.Fatalf("RenderUpgrade() should show restart notice after gentle-ai upgrade:\n%s", out)
 	}
 }
