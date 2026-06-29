@@ -3,9 +3,12 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // advisoryMaxBytes is the maximum number of bytes read from an advisory
@@ -24,7 +27,7 @@ const advisoryMaxBytes = 64 * 1024
 // (fail-open). No launch latency is added regardless.
 //
 // Package-level var so tests can substitute an httptest server URL.
-var advisoryURL = "https://github.com/Gentleman-Programming/gentle-ai/releases/download/advisory/advisory.json"
+var advisoryURL = fmt.Sprintf("https://github.com/%s/%s/releases/download/advisory/advisory.json", branding.Owner, branding.Repo) // overlay Gentle-QE (ancla qe-overlay)
 
 // advisoryHTTPClient is the HTTP client used exclusively for advisory fetches.
 // Timeout is 2s — intentionally shorter than the general GitHub client (5s)
@@ -60,7 +63,7 @@ func FetchAdvisory(ctx context.Context) (Advisory, bool) {
 	if err != nil {
 		return Advisory{}, false
 	}
-	req.Header.Set("User-Agent", "gentle-ai-advisory-check")
+	req.Header.Set("User-Agent", branding.Product+"-advisory-check")
 
 	resp, err := advisoryHTTPClient.Do(req)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/tui/styles"
 	"github.com/gentleman-programming/gentle-ai/internal/update"
 	"github.com/gentleman-programming/gentle-ai/internal/update/upgrade"
@@ -185,7 +186,7 @@ func renderUpgradeResult(b *strings.Builder, report *upgrade.UpgradeReport, widt
 
 	if reportUpgradedGentleAI(report) {
 		b.WriteString("\n")
-		b.WriteString(styles.WarningStyle.Render("⚠ gentle-ai was upgraded. Restart gentle-ai before running sync or continuing."))
+		b.WriteString(styles.WarningStyle.Render("⚠ " + branding.Product + " was upgraded. Restart " + branding.Product + " before running sync or continuing."))
 	}
 
 	b.WriteString("\n\n")
@@ -228,7 +229,7 @@ func reportUpgradedGentleAI(report *upgrade.UpgradeReport) bool {
 		return false
 	}
 	for _, result := range report.Results {
-		if result.ToolName == "gentle-ai" && result.Status == upgrade.UpgradeSucceeded {
+		if result.ToolName == branding.Product && result.Status == upgrade.UpgradeSucceeded {
 			return true
 		}
 	}

@@ -79,7 +79,7 @@ const roseArt = [
   "               ⠐⠈",
 ]
 
-const compactArt = ["✦ Gentle AI ✦"]
+const compactArt = ["✦ Gentle-QE ✦"]
 
 const Logo = (props: { theme: TuiThemeCurrent }) => {
   const dim = useTerminalDimensions()

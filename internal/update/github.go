@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // httpClient is the HTTP client used for GitHub API calls.
@@ -204,7 +206,7 @@ func doGitHubRequest(ctx context.Context, url string) (*http.Response, error) {
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "gentle-ai-update-check")
+	req.Header.Set("User-Agent", branding.UserAgent)
 
 	if token := resolveGitHubToken(); token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)

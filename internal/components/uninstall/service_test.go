@@ -10,6 +10,7 @@ import (
 
 	"github.com/gentleman-programming/gentle-ai/internal/agents"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 )
 
@@ -44,7 +45,7 @@ func TestExecutePlanReportsManualCleanupForNonEmptyDirectory(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	statePath := filepath.Join(homeDir, ".gentle-ai", "state.json")
+	statePath := filepath.Join(homeDir, branding.StateDir, "state.json")
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
 		t.Fatalf("MkdirAll(state dir) error = %v", err)
 	}
@@ -323,7 +324,7 @@ func TestComponentOperationsSDD_OpenCodeRemovesManagedPluginSourcesAndModelVaria
 		t.Fatalf("WriteFile(%q) error = %v", thirdPartyPluginPath, err)
 	}
 
-	cacheDir := filepath.Join(homeDir, ".gentle-ai", "cache")
+	cacheDir := filepath.Join(homeDir, branding.StateDir, "cache")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(cacheDir) error = %v", err)
 	}
@@ -380,7 +381,7 @@ func TestComponentOperationsSDD_OpenCodePreservesEmptyModelVariantsCacheDirector
 		t.Fatal("openCode adapter not found in registry")
 	}
 
-	cacheDir := filepath.Join(homeDir, ".gentle-ai", "cache")
+	cacheDir := filepath.Join(homeDir, branding.StateDir, "cache")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(cacheDir) error = %v", err)
 	}

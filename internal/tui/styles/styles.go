@@ -1,6 +1,10 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
+)
 
 // Rose Pine color palette.
 var (
@@ -24,7 +28,7 @@ const Cursor = "▸ "
 
 // Tagline returns the welcome screen tagline with the given version.
 func Tagline(version string) string {
-	return "Gentle-AI " + version + " — Ecosystem, Frameworks, Workflows"
+	return branding.Display + " " + version + " — Unified AI Ecosystem for Testing and Reliability"
 }
 
 // Pre-built reusable styles.

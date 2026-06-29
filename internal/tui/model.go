@@ -16,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gentleman-programming/gentle-ai/internal/agentbuilder"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/catalog"
 	"github.com/gentleman-programming/gentle-ai/internal/components/communitytool"
 	"github.com/gentleman-programming/gentle-ai/internal/components/opencodeplugin"
@@ -585,15 +586,15 @@ func NewModel(detection system.DetectionResult, version string, installState ...
 		s = installState[0]
 	}
 	agents := preselectedAgents(detection, s)
-	components := componentsForPreset(model.PresetFullGentleman, model.PersonaGentleman)
+	components := componentsForPreset(model.PresetQESDET, model.PersonaSDET) // overlay Gentle-QE (ancla qe-overlay)
 	if isPiOnlyAgents(agents) {
 		components = piOnlyComponents()
 	}
 
 	selection := model.Selection{
 		Agents:                 agents,
-		Persona:                model.PersonaGentleman,
-		Preset:                 model.PresetFullGentleman,
+		Persona:                model.PersonaSDET,
+		Preset:                 model.PresetQESDET,
 		Components:             components,
 		ClaudeModelAssignments: installStateClaudeAssignments(s.ClaudeModelAssignments),
 		ClaudePhaseAssignments: installStateClaudePhaseAssignments(s.ClaudePhaseAssignments),
@@ -2707,7 +2708,7 @@ func (m Model) startUninstall() tea.Cmd {
 			}
 			if isHomebrewManagedBinary(execPath) {
 				result.ManualActions = append(result.ManualActions,
-					"Homebrew-managed install detected. Run 'brew uninstall gentle-ai' to remove the executable cleanly.")
+					"Homebrew-managed install detected. Run 'brew uninstall "+branding.Product+"' to remove the executable cleanly.")
 			} else if removeErr := osRemoveFn(execPath); removeErr != nil {
 				return UninstallDoneMsg{Result: result, Err: fmt.Errorf("uninstall succeeded but failed to remove binary at %q: %w", execPath, removeErr)}
 			}
@@ -2827,7 +2828,7 @@ func (m Model) startUpgradeSync() tea.Cmd {
 
 func reportUpgradedGentleAI(report upgrade.UpgradeReport) bool {
 	for _, result := range report.Results {
-		if result.ToolName == "gentle-ai" && result.Status == upgrade.UpgradeSucceeded {
+		if result.ToolName == branding.Product && result.Status == upgrade.UpgradeSucceeded {
 			return true
 		}
 	}
@@ -2841,7 +2842,7 @@ func (m Model) GentleAIUpgradeVersion() (string, bool) {
 		return "", false
 	}
 	for _, result := range m.UpgradeReport.Results {
-		if result.ToolName == "gentle-ai" && result.Status == upgrade.UpgradeSucceeded {
+		if result.ToolName == branding.Product && result.Status == upgrade.UpgradeSucceeded {
 			return strings.TrimPrefix(result.NewVersion, "v"), true
 		}
 	}
@@ -4527,7 +4528,7 @@ func (m Model) startInstallation() (tea.Model, tea.Cmd) {
 		}
 
 		// Persist entry to registry.
-		registryPath := filepath.Join(homeDir(), ".config", "gentle-ai", "custom-agents.json")
+		registryPath := filepath.Join(homeDir(), ".config", branding.Product, "custom-agents.json")
 		_ = os.MkdirAll(filepath.Dir(registryPath), 0755)
 		if reg, loadErr := agentbuilder.LoadRegistry(registryPath); loadErr == nil {
 			// Collect IDs of agents that were successfully installed.

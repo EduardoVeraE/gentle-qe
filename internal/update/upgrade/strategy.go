@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/cli"
 	"github.com/gentleman-programming/gentle-ai/internal/components/engram"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
@@ -374,7 +375,7 @@ func homebrewFailureAdvice(toolName string, output string) string {
 			flag = "--formula"
 			artifact = "formula"
 		}
-		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this Gentle AI %s, then retry:\n  brew trust %s %s\n  brew upgrade %s", artifact, flag, ref, toolName)
+		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this %s %s, then retry:\n  brew trust %s %s\n  brew upgrade %s", branding.Display, artifact, flag, ref, toolName)
 	}
 
 	if strings.Contains(lower, "bubblewrap is installed but cannot create a rootless sandbox") ||
@@ -402,18 +403,19 @@ func goInstallUpgrade(ctx context.Context, tool update.ToolInfo, latestVersion s
 	return nil
 }
 
-func isBetaGentleAIUpgrade(r update.UpdateResult) bool {
-	return r.Tool.Name == "gentle-ai" &&
-		strings.EqualFold(r.Tool.Owner, "Gentleman-Programming") &&
-		r.Tool.Repo == "gentle-ai" &&
+func isBetaGentleAIUpgrade(r update.UpdateResult) bool { // overlay Gentle-QE (ancla qe-overlay)
+	return r.Tool.Name == branding.Product &&
+		strings.EqualFold(r.Tool.Owner, branding.Owner) &&
+		r.Tool.Repo == branding.Repo &&
 		strings.HasPrefix(strings.TrimSpace(r.LatestVersion), "main@")
 }
 
-func goInstallMainUpgrade(tool update.ToolInfo) error {
-	module := strings.ToLower(fmt.Sprintf("github.com/%s/%s", strings.TrimSpace(tool.Owner), strings.TrimSpace(tool.Repo)))
-	if module == "github.com//" {
-		module = "github.com/gentleman-programming/gentle-ai"
-	}
+func goInstallMainUpgrade(_ update.ToolInfo) error {
+	// El canal beta (main@) usa siempre el MODULE PATH real, que el fork NO
+	// rebrandea (ver internal/branding): aunque los releases del fork vivan en
+	// EduardoVeraE/gentle-qe, el `go install` resuelve por module path, no por
+	// owner/repo de release. Derivarlo del registry daría un module inexistente.
+	const module = "github.com/gentleman-programming/gentle-ai"
 	target := module + "/cmd/gentle-ai@main"
 	cmd := execCommand("go", "install", target)
 	cmd.Stdin = nil
@@ -573,7 +575,7 @@ func installerUpgrade(ctx context.Context, tool update.ToolInfo, releaseURL stri
 	cmd := execCommand("cmd", installerUpgradeArgs(tmpFile.Name(), beta)...)
 
 	fmt.Printf("\nLaunching installer for %s...\n", tool.Name)
-	fmt.Println("gentle-ai will now exit so the installer can replace the binary.")
+	fmt.Println(branding.Product + " will now exit so the installer can replace the binary.")
 
 	if err := cmd.Start(); err != nil {
 		return false, fmt.Errorf("failed to start installer: %w", err)

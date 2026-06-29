@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/state"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
 	"github.com/gentleman-programming/gentle-ai/internal/update"
@@ -164,7 +165,7 @@ func TestSelfUpdate_UpdateAvailable_CallsUpgradeAndRestart(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -172,7 +173,7 @@ func TestSelfUpdate_UpdateAvailable_CallsUpgradeAndRestart(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -208,7 +209,7 @@ func TestSelfUpdate_UpToDate_NoUpgradeCall(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.8.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpToDate,
@@ -235,7 +236,7 @@ func TestSelfUpdate_CheckError_ReturnsNil(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:   update.ToolInfo{Name: "gentle-ai"},
+			Tool:   update.ToolInfo{Name: branding.Product},
 			Status: update.CheckFailed,
 			Err:    context.DeadlineExceeded,
 		},
@@ -258,7 +259,7 @@ func TestSelfUpdate_UpgradeError_ReturnsNil(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -267,7 +268,7 @@ func TestSelfUpdate_UpgradeError_ReturnsNil(t *testing.T) {
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
 			{
-				ToolName: "gentle-ai",
+				ToolName: branding.Product,
 				Status:   upgrade.UpgradeFailed,
 				Err:      os.ErrPermission,
 			},
@@ -291,7 +292,7 @@ func TestSelfUpdate_PrintsRestartMessage(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -299,7 +300,7 @@ func TestSelfUpdate_PrintsRestartMessage(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -338,7 +339,7 @@ func TestSelfUpdate_BrewInstallMethod_PassedToUpgradeExecutor(t *testing.T) {
 	checkResults := []update.UpdateResult{
 		{
 			Tool: update.ToolInfo{
-				Name:          "gentle-ai",
+				Name:          branding.Product,
 				InstallMethod: update.InstallBrew,
 			},
 			InstalledVersion: "1.7.0",
@@ -376,7 +377,7 @@ func TestSelfUpdate_BrewInstallMethod_PassedToUpgradeExecutor(t *testing.T) {
 		capturedProfile = profile
 		return upgrade.UpgradeReport{
 			Results: []upgrade.ToolUpgradeResult{
-				{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+				{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 			},
 		}
 	}
@@ -413,7 +414,7 @@ func TestSelfUpdate_ConfirmUpdate_UserAccepts(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -421,7 +422,7 @@ func TestSelfUpdate_ConfirmUpdate_UserAccepts(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -457,7 +458,7 @@ func TestSelfUpdate_ConfirmUpdate_UserDeclines(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -496,7 +497,7 @@ func TestSelfUpdate_PromptAlwaysShown(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -504,7 +505,7 @@ func TestSelfUpdate_PromptAlwaysShown(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -538,7 +539,7 @@ func TestSelfUpdate_PromptAlwaysShown(t *testing.T) {
 func TestSelfUpdate_ConfirmUpdateTable(t *testing.T) {
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -546,7 +547,7 @@ func TestSelfUpdate_ConfirmUpdateTable(t *testing.T) {
 	}
 	successReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -613,7 +614,7 @@ func TestSelfUpdate_SetsPendingSyncOnSuccess(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -621,7 +622,7 @@ func TestSelfUpdate_SetsPendingSyncOnSuccess(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -663,7 +664,7 @@ func TestSelfUpdate_DoesNotSetPendingSyncOnFailure(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -671,7 +672,7 @@ func TestSelfUpdate_DoesNotSetPendingSyncOnFailure(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeFailed, Err: os.ErrPermission},
+			{ToolName: branding.Product, Status: upgrade.UpgradeFailed, Err: os.ErrPermission},
 		},
 	}
 
@@ -706,7 +707,7 @@ func TestSelfUpdate_NoClobberOnCorruptStateFile(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -714,7 +715,7 @@ func TestSelfUpdate_NoClobberOnCorruptStateFile(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -723,7 +724,7 @@ func TestSelfUpdate_NoClobberOnCorruptStateFile(t *testing.T) {
 	selfUpdateHomeDirFn = func() (string, error) { return tmpHome, nil }
 
 	// Write a corrupt (non-missing) state file so state.Read returns a non-ErrNotExist error.
-	stateDir := filepath.Join(tmpHome, ".gentle-ai")
+	stateDir := filepath.Join(tmpHome, branding.StateDir)
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -766,7 +767,7 @@ func TestSelfUpdate_PromptCalledWithoutEnvVar(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -774,7 +775,7 @@ func TestSelfUpdate_PromptCalledWithoutEnvVar(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -807,7 +808,7 @@ func TestSelfUpdate_ConfirmUpdateEnvIgnored(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -815,7 +816,7 @@ func TestSelfUpdate_ConfirmUpdateEnvIgnored(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -847,7 +848,7 @@ func TestSelfUpdate_UserDeclines_NoUpgrade(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -975,7 +976,7 @@ func TestSelfUpdate_YesFlag_AutoAccepts(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -983,7 +984,7 @@ func TestSelfUpdate_YesFlag_AutoAccepts(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 
@@ -1028,7 +1029,7 @@ func TestSelfUpdate_YesEnvVar_AutoAccepts(t *testing.T) {
 
 	checkResults := []update.UpdateResult{
 		{
-			Tool:             update.ToolInfo{Name: "gentle-ai"},
+			Tool:             update.ToolInfo{Name: branding.Product},
 			InstalledVersion: "1.7.0",
 			LatestVersion:    "1.8.0",
 			Status:           update.UpdateAvailable,
@@ -1036,7 +1037,7 @@ func TestSelfUpdate_YesEnvVar_AutoAccepts(t *testing.T) {
 	}
 	upgradeReport := upgrade.UpgradeReport{
 		Results: []upgrade.ToolUpgradeResult{
-			{ToolName: "gentle-ai", Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
+			{ToolName: branding.Product, Status: upgrade.UpgradeSucceeded, NewVersion: "1.8.0"},
 		},
 	}
 

@@ -74,9 +74,12 @@ func NormalizeInstallFlags(flags InstallFlags, detection system.DetectionResult)
 
 func normalizePersona(value string) (model.PersonaID, error) {
 	if strings.TrimSpace(value) == "" {
-		return model.PersonaGentleman, nil
+		return qeDefaultPersona, nil // overlay Gentle-QE (ancla qe-overlay)
 	}
 
+	if p := model.PersonaID(value); isQEPersona(p) { // overlay Gentle-QE (ancla qe-overlay)
+		return p, nil
+	}
 	switch model.PersonaID(value) {
 	case model.PersonaGentleman, model.PersonaGentlemanNeutralArtifacts, model.PersonaNeutral, model.PersonaCustom:
 		return model.PersonaID(value), nil
@@ -87,9 +90,12 @@ func normalizePersona(value string) (model.PersonaID, error) {
 
 func normalizePreset(value string) (model.PresetID, error) {
 	if strings.TrimSpace(value) == "" {
-		return model.PresetFullGentleman, nil
+		return qeDefaultPreset, nil // overlay Gentle-QE (ancla qe-overlay)
 	}
 
+	if p := model.PresetID(value); isQEPreset(p) { // overlay Gentle-QE (ancla qe-overlay)
+		return p, nil
+	}
 	switch model.PresetID(value) {
 	case model.PresetFullGentleman, model.PresetEcosystemOnly, model.PresetMinimal, model.PresetCustom:
 		return model.PresetID(value), nil
