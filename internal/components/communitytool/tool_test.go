@@ -2,6 +2,7 @@ package communitytool
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,19 @@ import (
 
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 )
+
+func TestMain(m *testing.M) {
+	codeGraphPackageLookPath = func(name string) (string, error) {
+		if name == "npm" {
+			return "/bin/npm", nil
+		}
+		return "", fmt.Errorf("not found")
+	}
+	codeGraphPnpmGlobalBin = func() (string, error) {
+		return "/bin", nil
+	}
+	os.Exit(m.Run())
+}
 
 func TestDefinitionsIncludesCodeGraph(t *testing.T) {
 	def, ok := DefinitionFor(model.CommunityToolCodeGraph)
@@ -33,6 +47,106 @@ func TestCodeGraphCommands(t *testing.T) {
 		if strings.Contains(strings.Join(command, " "), "codegraph init") {
 			t.Fatalf("CodeGraphCommands() includes project init command: %#v", command)
 		}
+	}
+}
+
+func TestCodeGraphCommandsForDetectorUsesPnpmWhenNpmIsUnavailable(t *testing.T) {
+	commands, err := CodeGraphCommandsForDetector(DetectorFunc(func(name string) (string, error) {
+		if name == "pnpm" {
+			return "/bin/pnpm", nil
+		}
+		return "", errors.New("not found")
+	}))
+	if err != nil {
+		t.Fatalf("CodeGraphCommandsForDetector() error = %v", err)
+	}
+	want := [][]string{
+		{"pnpm", "add", "-g", "@colbymchenry/codegraph@latest"},
+		{"codegraph", "install", "--yes"},
+	}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("CodeGraphCommandsForDetector() = %#v, want %#v", commands, want)
+	}
+}
+
+func TestCodeGraphCommandsForDetectorReportsUnusablePnpmGlobalBin(t *testing.T) {
+	previous := codeGraphPnpmGlobalBin
+	codeGraphPnpmGlobalBin = func() (string, error) {
+		return "", errors.New(`ERROR The configured global bin directory "/Users/example/Library/pnpm" is not in PATH`)
+	}
+	t.Cleanup(func() { codeGraphPnpmGlobalBin = previous })
+
+	_, err := CodeGraphCommandsForDetector(DetectorFunc(func(name string) (string, error) {
+		if name == "pnpm" {
+			return "/bin/pnpm", nil
+		}
+		return "", errors.New("not found")
+	}))
+	if err == nil {
+		t.Fatal("CodeGraphCommandsForDetector() error = nil, want unusable pnpm global bin error")
+	}
+	for _, want := range []string{"pnpm global installs are not ready", "pnpm setup", "not in PATH"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error = %v, want %q", err, want)
+		}
+	}
+}
+
+func TestCodeGraphCommandsForDetectorPrefersNpmWhenBothExist(t *testing.T) {
+	commands, err := CodeGraphCommandsForDetector(DetectorFunc(func(name string) (string, error) {
+		if name == "npm" || name == "pnpm" {
+			return "/bin/" + name, nil
+		}
+		return "", errors.New("not found")
+	}))
+	if err != nil {
+		t.Fatalf("CodeGraphCommandsForDetector() error = %v", err)
+	}
+	if got := commands[0]; !reflect.DeepEqual(got, []string{"npm", "install", "-g", "@colbymchenry/codegraph@latest"}) {
+		t.Fatalf("CodeGraphCommandsForDetector()[0] = %#v, want npm install", got)
+	}
+}
+
+func TestCodeGraphCommandsForDetectorFailsWhenNpmAndPnpmAreMissing(t *testing.T) {
+	_, err := CodeGraphCommandsForDetector(DetectorFunc(func(string) (string, error) {
+		return "", errors.New("not found")
+	}))
+	if err == nil || !strings.Contains(err.Error(), "npm") || !strings.Contains(err.Error(), "pnpm") {
+		t.Fatalf("CodeGraphCommandsForDetector() error = %v, want npm/pnpm requirement", err)
+	}
+}
+
+func TestInstallUsesPnpmWhenNpmIsUnavailable(t *testing.T) {
+	previous := codeGraphPackageLookPath
+	codeGraphPackageLookPath = func(name string) (string, error) {
+		if name == "pnpm" {
+			return "/bin/pnpm", nil
+		}
+		return "", errors.New("not found")
+	}
+	t.Cleanup(func() { codeGraphPackageLookPath = previous })
+
+	var commands []string
+	installed := false
+	_, err := InstallWithHome(model.CommunityToolCodeGraph, "/work/project", t.TempDir(), RunnerFunc(func(name string, args ...string) error {
+		commands = append(commands, strings.Join(append([]string{name}, args...), " "))
+		installed = true
+		return nil
+	}), DetectorFunc(func(string) (string, error) {
+		if installed {
+			return "/bin/codegraph", nil
+		}
+		return "", errors.New("not found")
+	}))
+	if err != nil {
+		t.Fatalf("InstallWithHome() error = %v", err)
+	}
+	want := []string{
+		"pnpm add -g @colbymchenry/codegraph@latest",
+		"codegraph install --yes",
+	}
+	if !reflect.DeepEqual(commands, want) {
+		t.Fatalf("commands = %#v, want %#v", commands, want)
 	}
 }
 
@@ -99,6 +213,44 @@ func TestCodeGraphGuidanceInjectsForRepresentativeAgents(t *testing.T) {
 	for _, path := range CodeGraphGuidancePaths(home) {
 		if strings.Contains(path, "node_modules") || strings.Contains(path, string(filepath.Separator)+"agents"+string(filepath.Separator)) || strings.Contains(path, string(filepath.Separator)+"chains"+string(filepath.Separator)) {
 			t.Fatalf("guidance mutated forbidden package path %q", path)
+		}
+	}
+}
+
+func TestCodeGraphGuidanceInjectRemovesLegacySkipBlock(t *testing.T) {
+	home := t.TempDir()
+	agentsPath := filepath.Join(home, ".config", "opencode", "AGENTS.md")
+	mustWrite(t, filepath.Join(home, ".config", "opencode", "opencode.json"), `{}`)
+	mustWrite(t, agentsPath, strings.Join([]string{
+		"custom notes",
+		"<!-- CODEGRAPH_START -->",
+		"## CodeGraph",
+		"If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.",
+		"<!-- CODEGRAPH_END -->",
+		"more notes",
+	}, "\n"))
+
+	result, err := InjectCodeGraphGuidanceIfSelected(home, []model.CommunityToolID{model.CommunityToolCodeGraph})
+	if err != nil {
+		t.Fatalf("InjectCodeGraphGuidanceIfSelected() error = %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("result.Changed = false, want true")
+	}
+
+	body, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", agentsPath, err)
+	}
+	text := string(body)
+	for _, stale := range []string{"<!-- CODEGRAPH_START -->", "<!-- CODEGRAPH_END -->", "skip CodeGraph entirely"} {
+		if strings.Contains(text, stale) {
+			t.Fatalf("legacy CodeGraph guidance %q was not removed:\n%s", stale, text)
+		}
+	}
+	for _, want := range []string{"custom notes", "more notes", "<!-- gentle-ai:codegraph-guidance -->", "codegraph init <project-root>"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("updated guidance missing %q:\n%s", want, text)
 		}
 	}
 }
