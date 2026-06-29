@@ -53,6 +53,10 @@
     {
       "file": "internal/app/app.go",
       "mustContain": "branding.Product"
+    },
+    {
+      "file": "internal/tui/styles/styles.go",
+      "mustContain": "branding.Display"
     }
   ],
   "inlineAnchors": [
