@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 	"github.com/gentleman-programming/gentle-ai/internal/state"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
@@ -50,7 +51,7 @@ func makeResult(name string, status update.UpdateStatus, oldVer, newVer string, 
 // UpdateAvailable or DevBuild status (i.e. only UpToDate and NotInstalled tools).
 func TestExecute_NoopWhenNothingIsExecutable(t *testing.T) {
 	results := []update.UpdateResult{
-		makeResult("gentle-ai", update.UpToDate, "1.0.0", "1.0.0", update.InstallBinary),
+		makeResult(branding.Product, update.UpToDate, "1.0.0", "1.0.0", update.InstallBinary),
 		makeResult("engram", update.NotInstalled, "", "0.4.0", update.InstallGoInstall),
 		// gga: CheckFailed — should also be omitted from results.
 		makeResult("gga", update.CheckFailed, "", "", update.InstallScript),
@@ -87,7 +88,7 @@ func TestExecute_DevBuildOnlyNoBackupCreated(t *testing.T) {
 	}
 
 	results := []update.UpdateResult{
-		makeResult("gentle-ai", update.DevBuild, "dev", "1.0.0", update.InstallBinary),
+		makeResult(branding.Product, update.DevBuild, "dev", "1.0.0", update.InstallBinary),
 	}
 
 	report := Execute(context.Background(), results, linuxProfile(), t.TempDir(), false)
@@ -372,7 +373,7 @@ func TestExecute_DevBuildIsSkipped(t *testing.T) {
 	}
 
 	results := []update.UpdateResult{
-		makeResult("gentle-ai", update.DevBuild, "dev", "1.0.0", update.InstallBinary),
+		makeResult(branding.Product, update.DevBuild, "dev", "1.0.0", update.InstallBinary),
 		makeResult("engram", update.UpdateAvailable, "0.3.0", "0.4.0", update.InstallGoInstall),
 	}
 	results[1].Tool.GoImportPath = "github.com/Gentleman-Programming/engram/cmd/engram"
@@ -382,7 +383,7 @@ func TestExecute_DevBuildIsSkipped(t *testing.T) {
 	// gentle-ai (DevBuild) MUST appear as UpgradeSkipped with a ManualHint.
 	var devResult *ToolUpgradeResult
 	for i := range report.Results {
-		if report.Results[i].ToolName == "gentle-ai" {
+		if report.Results[i].ToolName == branding.Product {
 			r := report.Results[i]
 			devResult = &r
 		}
@@ -468,7 +469,7 @@ func TestExecute_DevBuildSurfacedAsSkipped(t *testing.T) {
 	}
 
 	results := []update.UpdateResult{
-		makeResult("gentle-ai", update.DevBuild, "dev", "1.0.0", update.InstallBinary),
+		makeResult(branding.Product, update.DevBuild, "dev", "1.0.0", update.InstallBinary),
 		makeResult("engram", update.UpdateAvailable, "0.3.0", "0.4.0", update.InstallGoInstall),
 	}
 	results[1].Tool.GoImportPath = "github.com/Gentleman-Programming/engram/cmd/engram"
@@ -478,7 +479,7 @@ func TestExecute_DevBuildSurfacedAsSkipped(t *testing.T) {
 	// gentle-ai (DevBuild) MUST appear in results as UpgradeSkipped.
 	var devResult *ToolUpgradeResult
 	for i := range report.Results {
-		if report.Results[i].ToolName == "gentle-ai" {
+		if report.Results[i].ToolName == branding.Product {
 			r := report.Results[i]
 			devResult = &r
 		}
@@ -598,11 +599,11 @@ func TestConfigPathsForBackup_CoversManagedAgentPaths(t *testing.T) {
 	homeDir := t.TempDir()
 
 	managedFiles := map[string]string{
-		".claude/CLAUDE.md":             "# Claude",
-		".config/opencode/AGENTS.md":    "# OpenCode",
+		".claude/CLAUDE.md":              "# Claude",
+		".config/opencode/AGENTS.md":     "# OpenCode",
 		".config/opencode/opencode.json": `{"model":"claude"}`,
-		".gemini/GEMINI.md":                "# Gemini",
-		".cursor/rules/gentle-ai.mdc":       "# Cursor rules",
+		".gemini/GEMINI.md":              "# Gemini",
+		".cursor/rules/gentle-ai.mdc":    "# Cursor rules",
 	}
 	unmanagedFile := filepath.Join(homeDir, ".claude", "conversation-transcript.md")
 
@@ -761,7 +762,7 @@ func TestExecute_UpgradeBackupManifestHasUpgradeMetadata(t *testing.T) {
 	}
 
 	// Find the backup manifest on disk and verify its metadata.
-	backupRoot := filepath.Join(homeDir, ".gentle-ai", "backups")
+	backupRoot := filepath.Join(homeDir, branding.StateDir, "backups")
 	entries, err := os.ReadDir(backupRoot)
 	if err != nil {
 		t.Fatalf("ReadDir backups: %v", err)
@@ -1444,4 +1445,3 @@ func mockCmd(name string, args ...string) *exec.Cmd {
 	}
 	return exec.Command(name, args...)
 }
-

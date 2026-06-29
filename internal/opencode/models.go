@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // DefaultCachePath returns the default path to the OpenCode models cache file.
@@ -281,7 +283,7 @@ func DefaultVariantsCachePath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".gentle-ai", "cache", "model-variants.json")
+	return filepath.Join(home, branding.StateDir, "cache", "model-variants.json")
 }
 
 // LoadVariants reads the plugin-generated model-variants.json file.

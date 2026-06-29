@@ -18,7 +18,7 @@ func updateHint(tool ToolInfo, profile system.PlatformProfile) string {
 	case "gga":
 		return ggaHint(profile)
 	case "opencode-subagent-statusline", "opencode-sdd-engram-manage":
-		return "gentle-ai upgrade updates ~/.config/opencode npm deps, clears this plugin's @latest cache, then requires OpenCode restart/reload"
+		return branding.Product + " upgrade updates ~/.config/opencode npm deps, clears this plugin's @latest cache, then requires OpenCode restart/reload"
 	default:
 		return ""
 	}
@@ -29,7 +29,7 @@ func openCodeRegisteredNotMaterializedHint(tool ToolInfo) string {
 	if pkg == "" {
 		pkg = tool.Name
 	}
-	return fmt.Sprintf("registered in ~/.config/opencode/tui.json; pending npm dependency materialization for %s. Run gentle-ai upgrade to install/update ~/.config/opencode dependencies, then restart or reload OpenCode; if it stays pending, check OpenCode logs for package or peer dependency errors.", pkg)
+	return fmt.Sprintf("registered in ~/.config/opencode/tui.json; pending npm dependency materialization for %s. Run %s upgrade to install/update ~/.config/opencode dependencies, then restart or reload OpenCode; if it stays pending, check OpenCode logs for package or peer dependency errors.", pkg, branding.Product)
 }
 
 func gentleAIHint(profile system.PlatformProfile) string { // overlay Gentle-QE (ancla qe-overlay)
@@ -50,7 +50,7 @@ func engramHint(profile system.PlatformProfile) string {
 	case "brew":
 		return "brew upgrade engram"
 	default:
-		return "gentle-ai upgrade (downloads pre-built binary)"
+		return branding.Product + " upgrade (downloads pre-built binary)"
 	}
 }
 

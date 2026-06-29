@@ -3,9 +3,6 @@ package upgrade
 import (
 	"context"
 	"errors"
-	"github.com/gentleman-programming/gentle-ai/internal/branding"
-	"github.com/gentleman-programming/gentle-ai/internal/system"
-	"github.com/gentleman-programming/gentle-ai/internal/update"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +11,10 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
+	"github.com/gentleman-programming/gentle-ai/internal/system"
+	"github.com/gentleman-programming/gentle-ai/internal/update"
 )
 
 // --- TestRunStrategy_BrewUpgrade ---
@@ -271,27 +272,27 @@ func TestEffectiveMethod_GentleAIOnWindowsUsesInstaller(t *testing.T) {
 	}{
 		{
 			name: "binary becomes installer",
-			tool: update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallBinary},
+			tool: update.ToolInfo{Name: branding.Product, InstallMethod: update.InstallBinary},
 			want: update.InstallInstaller,
 		},
 		{
 			name: "script becomes installer",
-			tool: update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallScript},
+			tool: update.ToolInfo{Name: branding.Product, InstallMethod: update.InstallScript},
 			want: update.InstallInstaller,
 		},
 		{
 			name: "go-install becomes installer",
-			tool: update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallGoInstall},
+			tool: update.ToolInfo{Name: branding.Product, InstallMethod: update.InstallGoInstall},
 			want: update.InstallInstaller,
 		},
 		{
 			name: "installer stays installer",
-			tool: update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallInstaller},
+			tool: update.ToolInfo{Name: branding.Product, InstallMethod: update.InstallInstaller},
 			want: update.InstallInstaller,
 		},
 		{
 			name: "go available still uses installer",
-			tool: update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallBinary, GoImportPath: "github.com/Gentleman-Programming/gentle-ai/cmd/gentle-ai"},
+			tool: update.ToolInfo{Name: branding.Product, InstallMethod: update.InstallBinary, GoImportPath: "github.com/Gentleman-Programming/gentle-ai/cmd/gentle-ai"},
 			want: update.InstallInstaller,
 		},
 	}
@@ -1490,10 +1491,10 @@ func TestInstallerUpgradeArgs(t *testing.T) {
 	const tmpPath = `C:\Users\user\AppData\Local\Temp\gentle-ai-install-12345.ps1`
 
 	tests := []struct {
-		name          string
-		beta          bool
-		wantContains  []string
-		wantAbsent    []string
+		name         string
+		beta         bool
+		wantContains []string
+		wantAbsent   []string
 	}{
 		{
 			name: "stable upgrade does not include -Channel beta",
@@ -1819,7 +1820,7 @@ func TestInstallerUpgrade_NonWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("skipping non-Windows test on Windows platform")
 	}
-	tool := update.ToolInfo{Name: "gentle-ai"}
+	tool := update.ToolInfo{Name: branding.Product}
 	exitReq, err := installerUpgrade(context.Background(), tool, "", false)
 	if err == nil {
 		t.Errorf("expected error when calling installerUpgrade on non-windows, got nil")

@@ -230,7 +230,7 @@ func RunArgs(args []string, stdout io.Writer) error {
 	case "doctor":
 		return cli.RunDoctor(context.Background(), stdout)
 	default:
-		return fmt.Errorf("unknown command %q — run 'gentle-ai help' for available commands", args[0])
+		return fmt.Errorf("unknown command %q — run '%s help' for available commands", args[0], branding.Product)
 	}
 }
 
@@ -260,7 +260,7 @@ func gentleAIUpgradeVersionFromTUI(finalModel tea.Model) (string, bool) {
 
 func runSkillRegistry(args []string, stdout io.Writer) error {
 	if len(args) == 0 || args[0] != "refresh" {
-		return fmt.Errorf("usage: gentle-ai skill-registry refresh [--cwd <dir>] [--force] [--quiet] [--no-gitignore]")
+		return fmt.Errorf("usage: %s skill-registry refresh [--cwd <dir>] [--force] [--quiet] [--no-gitignore]", branding.Product)
 	}
 
 	cwd := ""
@@ -828,7 +828,7 @@ func ListBackups() []backup.Manifest {
 		return nil
 	}
 
-	backupRoot := filepath.Join(homeDir, ".gentle-ai", "backups")
+	backupRoot := filepath.Join(homeDir, branding.StateDir, "backups")
 	entries, err := os.ReadDir(backupRoot)
 	if err != nil {
 		return nil

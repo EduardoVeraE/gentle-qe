@@ -726,8 +726,8 @@ func TestFetchLatestRelease_GithubToken(t *testing.T) {
 		t.Fatalf("Authorization = %q, want %q", gotAuth, "Bearer test-token-123")
 	}
 
-	if gotUserAgent != "gentle-ai-update-check" {
-		t.Fatalf("User-Agent = %q, want %q", gotUserAgent, "gentle-ai-update-check")
+	if gotUserAgent != branding.UserAgent {
+		t.Fatalf("User-Agent = %q, want %q", gotUserAgent, branding.UserAgent)
 	}
 }
 
@@ -1012,13 +1012,13 @@ func TestUpdateHint(t *testing.T) {
 			name:    "engram linux",
 			tool:    ToolInfo{Name: "engram"},
 			profile: system.PlatformProfile{OS: "linux", PackageManager: "apt"},
-			want:    "gentle-ai upgrade (downloads pre-built binary)",
+			want:    branding.Product + " upgrade (downloads pre-built binary)",
 		},
 		{
 			name:    "engram windows",
 			tool:    ToolInfo{Name: "engram"},
 			profile: system.PlatformProfile{OS: "windows", PackageManager: "winget"},
-			want:    "gentle-ai upgrade (downloads pre-built binary)",
+			want:    branding.Product + " upgrade (downloads pre-built binary)",
 		},
 		{
 			name:    "gga macOS brew",
