@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/state"
 	"github.com/gentleman-programming/gentle-ai/internal/storage"
 )
@@ -38,7 +39,7 @@ type DoctorReport struct {
 	Checks []CheckResult
 }
 
-var knownTools = []string{"gentle-ai", "engram", "gga", "claude", "opencode"}
+var knownTools = []string{branding.Product, "engram", "gga", "claude", "opencode"}
 
 const (
 	engramHealthEnvVar = "ENGRAM_BASE_URL"
@@ -228,14 +229,14 @@ func checkStateJSON(homeDir string) CheckResult {
 				Name:   name,
 				Status: CheckStatusWarn,
 				Detail: "state file not found at " + statePath + " (expected for first-time install)",
-				Remedy: "Run 'gentle-ai install' to create initial state",
+				Remedy: "Run '" + branding.Product + " install' to create initial state",
 			}
 		}
 		return CheckResult{
 			Name:   name,
 			Status: CheckStatusFail,
 			Detail: "failed to parse " + statePath + ": " + err.Error(),
-			Remedy: "Delete or repair " + statePath + ", then re-run 'gentle-ai install'",
+			Remedy: "Delete or repair " + statePath + ", then re-run '" + branding.Product + " install'",
 		}
 	}
 
@@ -244,7 +245,7 @@ func checkStateJSON(homeDir string) CheckResult {
 			Name:   name,
 			Status: CheckStatusWarn,
 			Detail: "state file found at " + statePath + " with no installed agents",
-			Remedy: "Run 'gentle-ai install' to configure agents",
+			Remedy: "Run '" + branding.Product + " install' to configure agents",
 		}
 	}
 
@@ -262,7 +263,7 @@ func checkStateJSON(homeDir string) CheckResult {
 			Name:   name,
 			Status: CheckStatusWarn,
 			Detail: fmt.Sprintf("state lists %d agent(s) whose config dirs are missing: %s", len(missing), strings.Join(missing, ", ")),
-			Remedy: "Run 'gentle-ai sync' to restore missing config files",
+			Remedy: "Run '" + branding.Product + " sync' to restore missing config files",
 		}
 	}
 
@@ -379,7 +380,7 @@ func renderDoctorReport(w io.Writer, report DoctorReport) {
 		}
 	}
 
-	fmt.Fprintln(w, "gentle-ai doctor — system health check")
+	fmt.Fprintln(w, branding.Product+" doctor — system health check")
 	fmt.Fprintln(w, "=======================================")
 	fmt.Fprintln(w)
 
