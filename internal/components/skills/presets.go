@@ -38,6 +38,9 @@ var foundationSkills = []model.SkillID{
 //   - "full-gentleman" / PresetFullGentleman: all available skills
 //   - "custom" / PresetCustom:         empty (caller should provide explicit list)
 func SkillsForPreset(preset model.PresetID) []model.SkillID {
+	if ids, ok := qeSkillsForPreset(preset); ok { // overlay Gentle-QE (ancla qe-overlay)
+		return ids
+	}
 	switch preset {
 	case model.PresetMinimal:
 		return copySkills(sddSkills)
@@ -64,6 +67,7 @@ func AllSkillIDs() []model.SkillID {
 	all := make([]model.SkillID, 0, len(sddSkills)+len(foundationSkills))
 	all = append(all, sddSkills...)
 	all = append(all, foundationSkills...)
+	all = append(all, qeAllSkills()...) // overlay Gentle-QE (ancla qe-overlay)
 	return all
 }
 

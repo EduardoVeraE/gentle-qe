@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/system"
 )
 
@@ -153,8 +154,8 @@ func usesBetaMainHeadCheck(tool ToolInfo, currentVersion string) bool {
 	return isGentleAIRepo(tool) && (isBetaUpdateChannel() || isGoPseudoVersionWithCommit(currentVersion))
 }
 
-func isGentleAIRepo(tool ToolInfo) bool {
-	return tool.Name == "gentle-ai" && strings.EqualFold(tool.Owner, "Gentleman-Programming") && tool.Repo == "gentle-ai"
+func isGentleAIRepo(tool ToolInfo) bool { // overlay Gentle-QE (ancla qe-overlay): identifica el binario principal del fork
+	return tool.Name == branding.Product && strings.EqualFold(tool.Owner, branding.Owner) && tool.Repo == branding.Repo
 }
 
 func isBetaUpdateChannel() bool {

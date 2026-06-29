@@ -2,6 +2,8 @@ package update
 
 import (
 	"path/filepath"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // Tools is the static registry of managed tools that can be checked for updates.
@@ -15,9 +17,9 @@ import (
 // field here; InstallMethod represents the non-brew fallback strategy.
 var Tools = []ToolInfo{
 	{
-		Name:          "gentle-ai",
-		Owner:         "Gentleman-Programming",
-		Repo:          "gentle-ai",
+		Name:          branding.Product, // overlay Gentle-QE (ancla qe-overlay)
+		Owner:         branding.Owner,
+		Repo:          branding.Repo,
 		DetectCmd:     nil, // version comes from build-time ldflags (app.Version)
 		VersionPrefix: "v",
 		// gentle-ai: brew on macOS, binary release download on Linux.

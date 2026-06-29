@@ -3,18 +3,21 @@ package app
 import (
 	"fmt"
 	"io"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 func printHelp(w io.Writer, version string) {
-	fmt.Fprintf(w, `gentle-ai — Gentle-AI: Ecosystem, Frameworks, Workflows (%s)
+	p := branding.Product
+	fmt.Fprintf(w, `%s — %s: Unified AI Ecosystem for Testing and Reliability (%s)
 
 USAGE
-  gentle-ai                     Launch interactive TUI
-  gentle-ai <command> [flags]
+  %s                     Launch interactive TUI
+  %s <command> [flags]
 
 COMMANDS
   install      Configure AI coding agents on this machine
-  uninstall    Remove Gentle AI managed files from this machine
+  uninstall    Remove %s managed files from this machine
   sync         Sync agent configs and skills to current version
   skill-registry refresh
                Refresh .atl/skill-registry.md with cache-hit fast path
@@ -31,7 +34,7 @@ COMMANDS
 FLAGS
   --help, -h    Show this help
 
-Run 'gentle-ai help' for this message.
-Documentation: https://github.com/Gentleman-Programming/gentle-ai
-`, version)
+Run '%s help' for this message.
+Documentation: https://github.com/%s/%s
+`, p, branding.Display, version, p, p, branding.Display, p, branding.Owner, branding.Repo)
 }

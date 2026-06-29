@@ -12,6 +12,7 @@ import (
 
 	"github.com/gentleman-programming/gentle-ai/internal/agents"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 	"github.com/gentleman-programming/gentle-ai/internal/components/communitytool"
 	"github.com/gentleman-programming/gentle-ai/internal/components/engram"
 	"github.com/gentleman-programming/gentle-ai/internal/components/gga"
@@ -386,7 +387,7 @@ type syncRuntime struct {
 }
 
 func newSyncRuntime(homeDir string, selection model.Selection) (*syncRuntime, error) {
-	backupRoot := filepath.Join(homeDir, ".gentle-ai", "backups")
+	backupRoot := filepath.Join(homeDir, branding.StateDir, "backups")
 	if err := os.MkdirAll(backupRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create backup root directory %q: %w", backupRoot, err)
 	}
@@ -450,7 +451,8 @@ func (r *syncRuntime) stagePlan() pipeline.StagePlan {
 }
 
 func shouldRefreshCodeGraphGuidance(homeDir string) bool {
-	return communitytool.HasConfiguredCodeGraph(homeDir, communitytool.DetectorFunc(cmdLookPath))
+	return communitytool.HasConfiguredCodeGraph(homeDir, communitytool.DetectorFunc(cmdLookPath)) ||
+		communitytool.HasLegacyCodeGraphGuidance(homeDir)
 }
 
 // syncBackupTargets returns the file paths that need to be backed up
@@ -586,9 +588,15 @@ func (s codeGraphGuidanceSyncStep) ID() string {
 }
 
 func (s codeGraphGuidanceSyncStep) Run() error {
-	res, _, err := communitytool.RefreshCodeGraphGuidanceIfConfigured(s.homeDir, communitytool.DetectorFunc(cmdLookPath))
+	res, configured, err := communitytool.RefreshCodeGraphGuidanceIfConfigured(s.homeDir, communitytool.DetectorFunc(cmdLookPath))
 	if err != nil {
 		return fmt.Errorf("sync CodeGraph guidance: %w", err)
+	}
+	if !configured {
+		res, err = communitytool.CleanLegacyCodeGraphGuidance(s.homeDir)
+		if err != nil {
+			return fmt.Errorf("sync legacy CodeGraph guidance cleanup: %w", err)
+		}
 	}
 	if s.changedFiles != nil && res.Changed {
 		*s.changedFiles = append(*s.changedFiles, res.Files...)
@@ -1056,7 +1064,7 @@ func RenderSyncReport(result SyncResult) string {
 	var b strings.Builder
 
 	if result.NoOp {
-		fmt.Fprintln(&b, "gentle-ai sync — no managed sync actions needed")
+		fmt.Fprintln(&b, ""+branding.Product+" sync — no managed sync actions needed")
 		if len(result.Agents) == 0 {
 			fmt.Fprintln(&b, "No agents were discovered or specified. Nothing to sync.")
 		} else {
@@ -1067,7 +1075,7 @@ func RenderSyncReport(result SyncResult) string {
 	}
 
 	if result.DryRun {
-		fmt.Fprintln(&b, "gentle-ai sync — dry-run")
+		fmt.Fprintln(&b, ""+branding.Product+" sync — dry-run")
 		fmt.Fprintf(&b, "Agents: %s\n", joinAgentIDs(result.Agents))
 
 		compParts := make([]string, 0, len(result.Selection.Components))
@@ -1082,7 +1090,7 @@ func RenderSyncReport(result SyncResult) string {
 		return strings.TrimRight(b.String(), "\n")
 	}
 
-	fmt.Fprintln(&b, "gentle-ai sync — managed sync executed")
+	fmt.Fprintln(&b, ""+branding.Product+" sync — managed sync executed")
 	fmt.Fprintf(&b, "Agents synced: %s\n", joinAgentIDs(result.Agents))
 
 	compParts := make([]string, 0, len(result.Selection.Components))

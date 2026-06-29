@@ -494,6 +494,8 @@ func isGentlemanConversationPersona(persona model.PersonaID) bool {
 
 func personaContent(agent model.AgentID, persona model.PersonaID) string {
 	switch persona {
+	case model.PersonaSDET: // overlay Gentle-QE (ancla qe-overlay)
+		return qePersonaContent(agent, persona)
 	case model.PersonaNeutral:
 		// Per-agent neutral selection: Hermes uses its own neutral asset with
 		// the skill-loading block rewritten for ~/.hermes/skills/ (Decision 5).

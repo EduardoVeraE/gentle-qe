@@ -1,0 +1,9 @@
+{
+  "name": "deps-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vulnerable lodash pin used as deterministic input for deps-scan validation.",
+  "dependencies": {
+    "lodash": "4.17.4"
+  }
+}

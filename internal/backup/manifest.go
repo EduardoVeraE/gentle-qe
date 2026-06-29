@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/gentleman-programming/gentle-ai/internal/branding"
 )
 
 // BackupSource identifies what operation created a backup.
@@ -139,7 +141,7 @@ func backupRoot() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve home directory: %w", err)
 	}
-	return filepath.Join(home, ".gentle-ai", "backups"), nil
+	return filepath.Join(home, branding.StateDir, "backups"), nil
 }
 
 // BackupRootFn is the function used to resolve the backup root directory.
