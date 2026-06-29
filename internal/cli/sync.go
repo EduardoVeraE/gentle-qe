@@ -1064,7 +1064,7 @@ func RenderSyncReport(result SyncResult) string {
 	var b strings.Builder
 
 	if result.NoOp {
-		fmt.Fprintln(&b, "gentle-ai sync — no managed sync actions needed")
+		fmt.Fprintln(&b, ""+branding.Product+" sync — no managed sync actions needed")
 		if len(result.Agents) == 0 {
 			fmt.Fprintln(&b, "No agents were discovered or specified. Nothing to sync.")
 		} else {
@@ -1075,7 +1075,7 @@ func RenderSyncReport(result SyncResult) string {
 	}
 
 	if result.DryRun {
-		fmt.Fprintln(&b, "gentle-ai sync — dry-run")
+		fmt.Fprintln(&b, ""+branding.Product+" sync — dry-run")
 		fmt.Fprintf(&b, "Agents: %s\n", joinAgentIDs(result.Agents))
 
 		compParts := make([]string, 0, len(result.Selection.Components))
@@ -1090,7 +1090,7 @@ func RenderSyncReport(result SyncResult) string {
 		return strings.TrimRight(b.String(), "\n")
 	}
 
-	fmt.Fprintln(&b, "gentle-ai sync — managed sync executed")
+	fmt.Fprintln(&b, ""+branding.Product+" sync — managed sync executed")
 	fmt.Fprintf(&b, "Agents synced: %s\n", joinAgentIDs(result.Agents))
 
 	compParts := make([]string, 0, len(result.Selection.Components))
