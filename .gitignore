@@ -32,9 +32,8 @@ dist/
 .atl/
 .pi/
 
-# Engram local runtime state (project sync chunks are intentionally versioned)
-.engram/engram.db
-.engram/cloud.json
+# Engram local state (no se versiona — datos locales del proyecto)
+.engram/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
