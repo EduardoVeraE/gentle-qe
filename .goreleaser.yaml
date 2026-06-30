@@ -69,3 +69,9 @@ scoops:
     description: "Gentle-QE — Unified AI Ecosystem for Testing and Reliability."
     license: MIT
     commit_msg_template: "chore: update gentle-qe to {{ .Tag }}"
+
+# Reemplaza el release y sus assets si el tag se re-publica (p. ej. tras un
+# force-push del tag). Sin esto, GitHub rechaza el re-subido de assets con
+# 422 "already_exists" y goreleaser falla.
+release:
+  mode: replace
