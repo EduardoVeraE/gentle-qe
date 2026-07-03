@@ -13,12 +13,12 @@ The system MUST treat `neutral` as a level-neutral variant of the Gentleman ment
 - THEN it includes the same mentor behavior expectations as Gentleman for brevity, verification, concept-first explanation, and constructive correction
 - AND it does not include Rioplatense Spanish, regional slang, voseo, Gentleman branding, or regional persona voice instructions
 
-#### Scenario: Gentleman keeps regional mentor behavior when explicitly selected
+#### Scenario: Gentleman mirrors the user's Spanish register when explicitly selected
 
 - GIVEN an agent persona asset is rendered with persona `gentleman`
 - WHEN the generated instruction content is inspected
 - THEN it preserves the Gentleman mentor behavior contract
-- AND it preserves the Gentleman regional voice constraints
+- AND for Spanish replies it instructs mirroring the user's own Spanish register, with neutral Latin American Spanish (tuteo) as fallback, never imposing a regional voice by default (fork override applied at install time via qe-overlay)
 
 ---
 
@@ -69,7 +69,7 @@ Persona voice MUST govern only direct chat replies to the user. Generated techni
 
 - GIVEN persona `gentleman` is active
 - WHEN the system generates a technical artifact without an explicit request for regional language or tone
-- THEN the artifact does not include Rioplatense slang, voseo, Gentleman stylistic emphasis, or regional persona voice
+- THEN the artifact does not include regional slang, voseo, Gentleman stylistic emphasis, or regional persona voice
 - AND the artifact defaults to English unless project conventions require otherwise
 
 ---

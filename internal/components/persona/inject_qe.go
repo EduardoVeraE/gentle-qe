@@ -40,3 +40,31 @@ func personalGuidelines() string {
 	stripped := strings.TrimSpace(htmlCommentRE.ReplaceAllString(raw, ""))
 	return stripped
 }
+
+// qeRegionalVoiceReplacements es el mapa exacto viejo→nuevo que neutraliza la
+// directiva rioplatense de los assets gentleman del upstream. Los .md del
+// upstream NO se editan: la política del fork se aplica en runtime para que
+// los syncs mergeen limpio. Si el upstream reformula alguna de estas líneas,
+// el reemplazo deja de matchear y regional_voice_qe_test.go falla indicando
+// actualizar este mapa.
+var qeRegionalVoiceReplacements = [][2]string{
+	{
+		"When replying to the user in Spanish, use warm natural Rioplatense Spanish (voseo) without overloading the reply with slang.",
+		"When replying to the user in Spanish, mirror the user's own Spanish register and regional voice; if there is no clear signal, default to neutral Latin American Spanish (tuteo: \"tú\", \"puedes\") without regional slang.",
+	},
+	{
+		"Never inject Rioplatense slang, voseo,",
+		"Never inject regional slang, voseo,",
+	},
+}
+
+// qeNeutralizeRegionalVoice aplica la política de idioma del fork Gentle-QE al
+// contenido de persona/output-style antes de instalarlo: la persona espeja el
+// registro español del usuario y cae a español latinoamericano neutro (tuteo),
+// nunca impone voseo rioplatense por defecto.
+func qeNeutralizeRegionalVoice(content string) string {
+	for _, repl := range qeRegionalVoiceReplacements {
+		content = strings.ReplaceAll(content, repl[0], repl[1])
+	}
+	return content
+}

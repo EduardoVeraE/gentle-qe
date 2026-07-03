@@ -19,7 +19,8 @@
     "internal/tui/screens/persona_qe.go",
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
-    "internal/assets/generic/lineamientos-personales.md"
+    "internal/assets/generic/lineamientos-personales.md",
+    "internal/components/persona/regional_voice_qe_test.go"
   ],
   "brandingAnchors": [
     {
@@ -79,6 +80,18 @@
     {
       "file": "internal/components/persona/inject.go",
       "mustContain": "model.PersonaSDET"
+    },
+    {
+      "file": "internal/components/persona/inject.go",
+      "mustContain": "qeNeutralizeRegionalVoice(personaContent("
+    },
+    {
+      "file": "internal/components/persona/inject.go",
+      "mustContain": "qeNeutralizeRegionalVoice(assets.MustRead(\"kimi/output-style-gentleman.md\"))"
+    },
+    {
+      "file": "internal/components/persona/inject.go",
+      "mustContain": "qeNeutralizeRegionalVoice(assets.MustRead(\"claude/output-style-gentleman.md\"))"
     },
     {
       "file": "internal/tui/screens/preset.go",

@@ -90,7 +90,7 @@ Pi persona selection belongs to `gentle-pi`, not the Gentle AI installer.
 
 | Persona     | Behavior                                                                                                                   |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `gentleman` | Teaching-oriented senior architect persona with Rioplatense Spanish/voseo when the user writes Spanish.                    |
+| `gentleman` | Teaching-oriented senior architect persona. In Spanish it mirrors the user's own register, with neutral Latin American Spanish as fallback (fork override via qe-overlay). |
 | `neutral`   | Same senior architect discipline and teaching philosophy, but with warm professional language and no regional expressions. |
 
 The selection is saved at:

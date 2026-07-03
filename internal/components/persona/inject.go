@@ -76,7 +76,7 @@ func injectInternal(homeDir string, adapter agents.Adapter, persona model.Person
 	files := make([]string, 0, 3)
 	changed := false
 
-	content := personaContent(adapter.Agent(), persona)
+	content := qeNeutralizeRegionalVoice(personaContent(adapter.Agent(), persona)) // (ancla qe-overlay)
 	if content == "" {
 		return InjectionResult{}, nil
 	}
@@ -296,7 +296,7 @@ func injectInternal(homeDir string, adapter agents.Adapter, persona model.Person
 		outputStyleContent := ""
 		switch {
 		case isGentlemanConversationPersona(persona):
-			outputStyleContent = assets.MustRead("kimi/output-style-gentleman.md")
+			outputStyleContent = qeNeutralizeRegionalVoice(assets.MustRead("kimi/output-style-gentleman.md")) // (ancla qe-overlay)
 		case persona == model.PersonaNeutral:
 			outputStyleContent = assets.MustRead("kimi/output-style-neutral.md")
 		}
@@ -347,7 +347,7 @@ func injectInternal(homeDir string, adapter agents.Adapter, persona model.Person
 		outputStyleDir := adapter.OutputStyleDir(homeDir)
 		if outputStyleDir != "" {
 			outputStylePath := outputStyleDir + "/gentleman.md"
-			outputStyleContent := assets.MustRead("claude/output-style-gentleman.md")
+			outputStyleContent := qeNeutralizeRegionalVoice(assets.MustRead("claude/output-style-gentleman.md")) // (ancla qe-overlay)
 
 			styleResult, err := filemerge.WriteFileAtomic(outputStylePath, []byte(outputStyleContent), 0o644)
 			if err != nil {

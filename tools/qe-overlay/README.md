@@ -18,7 +18,11 @@ anclaje (marcados en el código con `// ... (ancla qe-overlay)`).
    Se auto-embeben vía el glob `//go:embed all:skills …`; agregar uno no toca código.
 2. **Wiring Go aislado** — archivos `_qe.go` (`types_qe.go`, `catalog/skills_qe.go`,
    `presets_qe.go`, `persona/inject_qe.go`, `tui/screens/*_qe.go`, `cli/qe_defaults.go`)
-   más ~8 líneas de delegación inline.
+   más ~8 líneas de delegación inline. Incluye `qeNeutralizeRegionalVoice`
+   (inject_qe.go): neutraliza en runtime la directiva rioplatense/voseo de los
+   assets gentleman del upstream (espeja el registro del usuario, fallback a
+   español neutro LatAm) sin editar los `.md`; la guarda de drift vive en
+   `persona/regional_voice_qe_test.go`.
 3. **Branding mínimo** — `internal/branding`, referenciado solo en los sitios funcionales
    del self-update / version. El **module path Go y el state dir `.gentle-ai` NO se
    rebrandean** (alta dispersión, romperían el build / generarían fricción).

@@ -26,7 +26,7 @@ func TestInjectGentlemanNeutralArtifactsUsesGentlemanConversationWithArtifactBou
 	}
 	text := string(content)
 	for _, want := range []string{
-		"Rioplatense",
+		"mirror the user's own Spanish register",
 		"Generated technical artifacts default to English",
 		"Public/contextual comments follow the target context language",
 		"If the selected reply language is English, every part of the direct reply must be English",
