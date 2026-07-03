@@ -69,7 +69,7 @@ test_version_command() {
 
     output=$($BINARY version 2>&1) || true
 
-    if echo "$output" | grep -q "gentle-ai"; then
+    if echo "$output" | grep -q "gentle-qe"; then
         log_pass "Version command returns binary name"
     else
         log_fail "Version command failed: $output"
