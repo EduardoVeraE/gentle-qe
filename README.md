@@ -95,7 +95,7 @@ Run `gentle-qe doctor` at any time for a read-only health check of your ecosyste
 ```bash
 # macOS / Linux
 brew tap EduardoVeraE/homebrew-tap
-brew install --cask EduardoVeraE/homebrew-tap/gentle-qe
+brew install gentle-qe
 
 # Windows
 scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket

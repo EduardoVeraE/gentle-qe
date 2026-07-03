@@ -41,23 +41,25 @@ changelog:
       - "^test:"
       - "^ci:"
 
-# Homebrew cask (no formula): el binario no está firmado, así que se distribuye
-# como cask y se le quita el atributo de cuarentena en el postflight.
-homebrew_casks:
+# Homebrew formula (no cask): los casks no existen en Homebrew para Linux y,
+# ante nombre ambiguo, brew resuelve la fórmula; además el flujo de self-update
+# (`brew trust --formula`) asume fórmula. El tarball descargado por brew via
+# curl no recibe el atributo de cuarentena, así que el postflight de xattr que
+# necesitaba el cask sobra. goreleaser marca `brews` como deprecated a favor de
+# casks; se usa a propósito — decisión de distribución de este fork.
+brews:
   - repository:
       owner: EduardoVeraE
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     name: gentle-qe
+    directory: Formula
     homepage: "https://github.com/EduardoVeraE/gentle-qe"
     description: "Gentle-QE — Unified AI Ecosystem for Testing and Reliability."
-    commit_msg_template: "chore: update gentle-qe cask to {{ .Tag }}"
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gentle-qe"]
-          end
+    license: MIT
+    commit_msg_template: "chore: update gentle-qe formula to {{ .Tag }}"
+    install: |
+      bin.install "gentle-qe"
 
 scoops:
   - repository:
