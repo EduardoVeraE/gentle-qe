@@ -113,3 +113,87 @@ func TestDetectBrandLeaksSinForbidden(t *testing.T) {
 		t.Fatalf("sin forbidden no debe escanear nada, tengo: %v", leaks)
 	}
 }
+
+func TestVerifyNetNewInstallableOK(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/SKILL.md", "# skill\n")
+	mustWrite(t, "skills/qa/references/ref.md", "contenido\n")
+
+	m := &manifest{NetNewDirs: []string{"skills/qa"}}
+	if got := verifyNetNewInstallable(m); len(got) != 0 {
+		t.Fatalf("skill instalable no debe reportar problemas, tengo: %v", got)
+	}
+}
+
+func TestVerifyNetNewInstallableEmptyAssetAborts(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/SKILL.md", "# skill\n")
+	mustWrite(t, "skills/qa/references/.gitkeep", "") // 0 bytes: reventaría el install
+
+	m := &manifest{NetNewDirs: []string{"skills/qa"}}
+	got := verifyNetNewInstallable(m)
+	if len(got) != 1 {
+		t.Fatalf("quiero 1 problema por asset vacío, tengo %d: %v", len(got), got)
+	}
+	if !strings.Contains(got[0], ".gitkeep") {
+		t.Errorf("el problema debería nombrar el archivo vacío, no: %q", got[0])
+	}
+}
+
+func TestVerifyNetNewInstallableMissingSkillMD(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/references/ref.md", "contenido\n") // no hay SKILL.md
+
+	m := &manifest{NetNewDirs: []string{"skills/qa"}}
+	got := verifyNetNewInstallable(m)
+	if len(got) != 1 {
+		t.Fatalf("quiero 1 problema por falta de SKILL.md, tengo %d: %v", len(got), got)
+	}
+	if !strings.Contains(got[0], "SKILL.md") {
+		t.Errorf("el problema debería mencionar SKILL.md, no: %q", got[0])
+	}
+}
+
+// Un SKILL.md anidado (fuera de la raíz del skill) no cuenta como el canónico.
+func TestVerifyNetNewInstallableNestedSkillMDDoesNotCount(t *testing.T) {
+	t.Chdir(t.TempDir())
+	mustWrite(t, "skills/qa/sub/SKILL.md", "# anidado\n") // no está en la raíz
+
+	m := &manifest{NetNewDirs: []string{"skills/qa"}}
+	got := verifyNetNewInstallable(m)
+	if len(got) != 1 {
+		t.Fatalf("un SKILL.md anidado no debe contar, quiero 1 problema, tengo %d: %v", len(got), got)
+	}
+}
+
+// Un directorio net-new ausente lo reporta la sección de presencia, no esta.
+func TestVerifyNetNewInstallableMissingDirIsSilentHere(t *testing.T) {
+	t.Chdir(t.TempDir())
+	m := &manifest{NetNewDirs: []string{"skills/falta"}}
+	if got := verifyNetNewInstallable(m); len(got) != 0 {
+		t.Fatalf("un dir ausente no debe reportarse aquí, tengo: %v", got)
+	}
+}
+
+// El repo real debe pasar la validación de instalabilidad (guarda de regresión
+// del incidente qa-owasp-security con .gitkeep vacíos).
+func TestVerifyNetNewInstallableRealRepo(t *testing.T) {
+	t.Chdir(repoRoot(t))
+	m, err := loadManifest()
+	if err != nil {
+		t.Fatalf("loadManifest: %v", err)
+	}
+	if got := verifyNetNewInstallable(m); len(got) != 0 {
+		t.Fatalf("los net-new del repo deben ser instalables, problemas: %v", got)
+	}
+}
+
+// repoRoot sube desde el paquete (tools/qe-overlay) hasta la raíz del repo.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(wd, "..", "..")
+}

@@ -36,9 +36,12 @@ go run ./tools/qe-overlay verify   # ¿overlay intacto? ¿drift del upstream?
 go run ./tools/qe-overlay accept   # absorbe skills nuevos del upstream al manifiesto
 ```
 
-`verify` (exit ≠ 0 si hay problemas) chequea: directorios net-new presentes, archivos
-`_qe.go` presentes, anclas de branding intactas, delegaciones inline intactas, y skills
-upstream nuevos sin clasificar. Corre en CI (job *Overlay Guard*).
+`verify` (exit ≠ 0 si hay problemas) chequea: directorios net-new presentes,
+**net-new instalables** (sin assets embebidos de 0 bytes y con `SKILL.md` en la raíz —
+un solo archivo vacío aborta toda la inyección de skills al instalar, y `//go:embed all:`
+arrastra hasta dotfiles vacíos como `.gitkeep`), archivos `_qe.go` presentes, anclas de
+branding intactas, delegaciones inline intactas, y skills upstream nuevos sin clasificar.
+Corre en CI (job *Overlay Guard*).
 
 El manifiesto `overlay.json` es la **fuente de verdad** del overlay: edítalo cuando
 agregues un skill QA, un nuevo archivo `_qe.go` o un nuevo punto de anclaje.
