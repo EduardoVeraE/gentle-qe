@@ -3,6 +3,11 @@
 Historial de cambios de **Gentle-QE**, el fork de [gentle-ai](https://github.com/Gentleman-Programming/gentle-ai) orientado a QA/SDET.
 Los cambios se listan en orden cronológico descendente (lo más reciente primero).
 
+## [0.1.2] - 2026-07-04
+
+- Arreglada la instalación: se quedaba al 94% en el componente de skills y hacía rollback por unos archivos vacíos que se colaban en la skill de seguridad OWASP. Ahora la instalación completa al 100%.
+- Se agregó una verificación automática que evita que archivos vacíos vuelvan a romper la instalación de skills en el futuro.
+
 ## [0.1.1] - 2026-07-03
 
 - La persona ahora se comunica en español neutro (se eliminó el voseo rioplatense heredado del upstream).
@@ -23,5 +28,6 @@ Primer release público del fork.
 - Distribución multiplataforma: binarios para macOS/Linux/Windows, tap de Homebrew y bucket de Scoop.
 - CI propio: tests unitarios, E2E en Ubuntu/Arch/Fedora y guard de integridad del overlay.
 
+[0.1.2]: https://github.com/EduardoVeraE/gentle-qe/releases/tag/v0.1.2
 [0.1.1]: https://github.com/EduardoVeraE/gentle-qe/releases/tag/v0.1.1
 [0.1.0]: https://github.com/EduardoVeraE/gentle-qe/releases/tag/v0.1.0
