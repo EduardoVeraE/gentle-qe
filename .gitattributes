@@ -14,6 +14,7 @@
 # Resuelven a favor del fork en cada `git merge upstream/main` (driver merge=ours).
 # Habilitar el driver una vez por clon:  git config merge.ours.driver true
 # tools/qe-overlay igual reporta los cambios upstream relevantes para incorporarlos a mano.
-README.md          merge=ours
-.goreleaser.yaml   merge=ours
-scripts/install.sh merge=ours
+README.md                      merge=ours
+.goreleaser.yaml               merge=ours
+scripts/install.sh             merge=ours
+.github/workflows/pr-check.yml merge=ours
