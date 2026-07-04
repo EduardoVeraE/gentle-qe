@@ -102,6 +102,13 @@ func runVerify(m *manifest) int {
 		}
 	}
 
+	// 2b. Net-new instalables: no basta con que el directorio exista, tiene que
+	//     poder instalarse. Un solo asset embebido de 0 bytes aborta TODA la
+	//     inyección de skills en la instalación (inject.go rechaza assets vacíos)
+	//     y //go:embed all: arrastra hasta dotfiles (.gitkeep/.DS_Store). Esta
+	//     guarda caza en CI lo que antes solo reventaba al instalar.
+	problems = append(problems, verifyNetNewInstallable(m)...)
+
 	// 3. Anclas de branding.
 	for _, a := range m.BrandingAnchors {
 		body, err := readFile(a.File)
@@ -163,6 +170,60 @@ func runVerify(m *manifest) int {
 	}
 	// Solo notas (drift no bloqueante): salida 0 pero visible.
 	return 0
+}
+
+// verifyNetNewInstallable comprueba que cada directorio net-new sea instalable,
+// no solo que exista:
+//
+//	(a) ningún archivo embebido de 0 bytes — un solo asset vacío aborta toda la
+//	    inyección de skills en la instalación (ver internal/components/skills/
+//	    inject.go: "embedded asset %q is empty"); //go:embed all: arrastra hasta
+//	    los dotfiles vacíos (.gitkeep, .DS_Store, .gitignore).
+//	(b) un SKILL.md en la raíz del directorio — un skill sin él no se instala.
+//
+// Solo mira directorios presentes; la ausencia ya la reporta la sección de
+// presencia. Devuelve un problema por hallazgo (ordenados).
+func verifyNetNewInstallable(m *manifest) []string {
+	var problems []string
+	for _, d := range m.NetNewDirs {
+		if !isDir(d) {
+			continue // ausencia ya reportada por la sección de presencia
+		}
+		root := filepath.Clean(d)
+		var empties []string
+		hasSkillMD := false
+		err := filepath.WalkDir(root, func(p string, e fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if e.IsDir() {
+				return nil
+			}
+			if filepath.Base(p) == "SKILL.md" && filepath.Dir(p) == root {
+				hasSkillMD = true
+			}
+			info, infoErr := e.Info()
+			if infoErr != nil {
+				return infoErr
+			}
+			if info.Size() == 0 {
+				empties = append(empties, p)
+			}
+			return nil
+		})
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("no se pudo recorrer el net-new %s: %v", d, err))
+			continue
+		}
+		sort.Strings(empties)
+		for _, p := range empties {
+			problems = append(problems, fmt.Sprintf("asset embebido vacío en net-new: %s (0 bytes → abortaría la inyección de skills al instalar; elimínalo o agrégale contenido)", p))
+		}
+		if !hasSkillMD {
+			problems = append(problems, fmt.Sprintf("net-new sin SKILL.md en la raíz: %s (un skill sin SKILL.md no se instala)", d))
+		}
+	}
+	return problems
 }
 
 // runAccept absorbe los skills nuevos del upstream en el manifiesto (known).
