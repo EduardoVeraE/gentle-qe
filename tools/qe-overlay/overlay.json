@@ -17,6 +17,7 @@
     "internal/components/persona/inject_qe.go",
     "internal/tui/screens/preset_qe.go",
     "internal/tui/screens/persona_qe.go",
+    "internal/tui/styles/logo_qe.go",
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
     "internal/assets/generic/lineamientos-personales.md",
