@@ -21,7 +21,8 @@
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
     "internal/assets/generic/lineamientos-personales.md",
-    "internal/components/persona/regional_voice_qe_test.go"
+    "internal/components/persona/regional_voice_qe_test.go",
+    "internal/components/skills/qa_injection_qe_test.go"
   ],
   "brandingAnchors": [
     {
