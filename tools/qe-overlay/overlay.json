@@ -22,7 +22,19 @@
     "internal/assets/generic/persona-sdet.md",
     "internal/assets/generic/lineamientos-personales.md",
     "internal/components/persona/regional_voice_qe_test.go",
-    "internal/components/skills/qa_injection_qe_test.go"
+    "internal/components/skills/qa_injection_qe_test.go",
+    "internal/assets/skills/_qe-sdd/explore.md",
+    "internal/assets/skills/_qe-sdd/propose.md",
+    "internal/assets/skills/_qe-sdd/spec.md",
+    "internal/assets/skills/_qe-sdd/design.md",
+    "internal/assets/skills/_qe-sdd/tasks.md",
+    "internal/assets/skills/_qe-sdd/apply.md",
+    "internal/assets/skills/_qe-sdd/verify.md",
+    "internal/assets/skills/_qe-sdd/apply.strict-tdd.md",
+    "internal/assets/skills/_qe-sdd/verify.strict-tdd-verify.md",
+    "internal/components/skills/inject_qe.go",
+    "internal/components/sdd/inject_qe.go",
+    "internal/components/sdd/qe_sdd_override_qe_test.go"
   ],
   "brandingAnchors": [
     {
@@ -110,6 +122,22 @@
     {
       "file": "internal/cli/validate.go",
       "mustContain": "qeDefaultPreset"
+    },
+    {
+      "file": "internal/components/skills/inject.go",
+      "mustContain": "QESDDTestingContent"
+    },
+    {
+      "file": "internal/components/sdd/inject.go",
+      "mustContain": "qeSwapNativeAgentBody"
+    },
+    {
+      "file": "internal/components/sdd/prompts.go",
+      "mustContain": "QESDDTestingContent"
+    },
+    {
+      "file": "internal/components/uninstall/service.go",
+      "mustContain": "_qe-sdd"
     }
   ],
   "brandLeak": {
@@ -119,6 +147,7 @@
   "upstreamSkills": {
     "dir": "internal/assets/skills",
     "known": [
+      "_qe-sdd",
       "_shared",
       "branch-pr",
       "chained-pr",

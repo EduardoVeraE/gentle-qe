@@ -1,8 +1,13 @@
 ---
 name: sdd-explore
-description: "Explore SDD ideas as a quality-risk analysis (risk, testability, defect clustering, oracle inventory). Trigger: SDD explore phase for a QE test-design change."
-model: sonnet
-tools: Read, Grep, Glob, WebFetch, WebSearch, mcp__plugin_engram_engram__mem_save
+description: "Explore SDD ideas as a quality-risk analysis before committing to a change. Trigger: orchestrator launches exploration or requirement clarification for a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are

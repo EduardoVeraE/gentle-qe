@@ -529,7 +529,10 @@ func (s *Service) componentOperations(adapter agents.Adapter, componentID model.
 			return nil, nil, fmt.Errorf("read embedded skills: %w", err)
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() || strings.HasPrefix(entry.Name(), "sdd-") || entry.Name() == "_shared" {
+			// _qe-sdd carries the QE test-design overrides for the SDD skills;
+			// it must never be removed by a generic (non-SDD) skills uninstall.
+			if !entry.IsDir() || strings.HasPrefix(entry.Name(), "sdd-") ||
+				entry.Name() == "_shared" || entry.Name() == "_qe-sdd" {
 				continue
 			}
 			dirPath := filepath.Join(skillDir, entry.Name())

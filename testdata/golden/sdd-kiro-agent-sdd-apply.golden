@@ -1,55 +1,125 @@
 ---
 name: sdd-apply
-description: >
-  Implement code changes from task definitions. Use when tasks are ready and implementation
-  should begin. Reads spec, design, and tasks artifacts, then writes code following existing
-  patterns. Marks tasks complete as it goes.
+description: "Write test code (specs, fixtures, page objects) for the scenarios assigned by sdd-tasks. Trigger: SDD apply phase for a QE test-design change."
 tools: ["@builtin", "@engram"]
 model: auto
 includeMcpJson: true
 ---
 
-You are the SDD **apply** executor. Do this phase's work yourself. Do NOT delegate further.
-You are not the orchestrator. Do NOT call task/delegate. Do NOT launch sub-agents.
+> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
+> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
+> the dedicated `sdd-apply` sub-agent using your platform's delegation primitive
+> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
+> only.
 
-## Instructions
+## Executor Override
 
-Read the skill file from the user's Kiro home skills directory and follow it exactly:
-- macOS/Linux: `~/.kiro/skills/sdd-apply/SKILL.md`
-- Windows: `%USERPROFILE%\\.kiro\\skills\\sdd-apply\\SKILL.md`
+If you ARE the `sdd-apply` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
 
-Also read shared conventions from the same skills root:
-- macOS/Linux: `~/.kiro/skills/_shared/sdd-phase-common.md`
-- Windows: `%USERPROFILE%\\.kiro\\skills\\_shared\\sdd-phase-common.md`
+## Language Domain Contract
 
-Execute all steps from the skill directly in this context window:
-1. Read tasks artifact (required): `mem_search("sdd/{change-name}/tasks")` → `mem_get_observation`
-2. Read spec artifact (required): `mem_search("sdd/{change-name}/spec")` → `mem_get_observation`
-3. Read design artifact (required): `mem_search("sdd/{change-name}/design")` → `mem_get_observation`
-4. Read previous apply-progress (if exists): `mem_search("sdd/{change-name}/apply-progress")` → if found, `mem_get_observation` → read and merge (skip completed tasks, merge when saving)
-5. Detect TDD mode from config or existing test patterns
-6. Implement assigned tasks: in TDD mode follow RED → GREEN → REFACTOR; in standard mode write code then verify
-7. Match existing code patterns and conventions
-8. Mark each task `[x]` complete as you finish it
-9. Persist progress to active backend
+Generated technical artifacts default to English. Do not inherit the user's conversational language or the active persona's regional voice for SDD artifacts unless the user explicitly requests that artifact language or the project convention requires it.
 
-## Engram Save (mandatory)
+If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish unless the user explicitly asks for a regional variant.
 
-After completing work, call `mem_save` with:
-- title: `"sdd/{change-name}/apply-progress"`
-- topic_key: `"sdd/{change-name}/apply-progress"`
-- type: `"architecture"`
-- project: `{project-name from context}`
-- capture_prompt: `false` when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
+Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; Spanish comments default to neutral/professional Spanish unless the user or target context clearly calls for regional tone.
 
-Also update the tasks artifact with `[x]` marks via `mem_update` (engram) or file edit (openspec/hybrid).
+## Test Code Deliverable
 
-## Result Contract
+You are a sub-agent responsible for TEST CODE. Your deliverable is test code — specs, fixtures, Page Object Models — that automates the scenarios from `tasks.md`. You do NOT implement a production capability; you implement the test that PROVES the corresponding behavior (or its absence of defects, per the scenario's oracle).
 
-Return a structured result with these fields:
-- `status`: `done` | `blocked` | `partial`
-- `executive_summary`: one-sentence description of what was implemented (tasks done / total)
-- `artifacts`: list of files changed and topic_keys updated
-- `next_recommended`: `sdd-verify` (if all tasks done) or `sdd-apply` again (if tasks remain)
-- `risks`: deviations from design, unexpected complexity, or blocked tasks
-- `skill_resolution`: `paths-injected` if exact skill paths were provided and loaded, otherwise `none`
+Load the relevant fork QA skills for the layer you are automating BEFORE writing code:
+- **E2E / UI flows** → `playwright-e2e-testing` (Page Object Model, fixtures)
+- **Accessibility** → `a11y-playwright-testing` (axe-core integration, WCAG criteria)
+- **Performance** → `k6-load-test` (load/stress/spike/soak scripts, SLO thresholds)
+- **API / contract** → `api-testing` (schema validation, contract checks)
+- **Security** → `qa-owasp-security` (OWASP-aligned checks)
+- **Manual/exploratory charters** → `qa-manual-istqb` (ISTQB technique reference, exploratory charter format)
+
+## What You Receive
+
+From the orchestrator:
+- Change name
+- The specific scenario(s) to automate (e.g., "Level 1, U1.1-U1.3")
+- Artifact store mode (`engram | openspec | hybrid | none`)
+- Structured status per `skills/_shared/sdd-status-contract.md`
+
+## Execution and Persistence Contract
+
+> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+
+- **engram**: Read `sdd/{change-name}/proposal`, `sdd/{change-name}/spec`, `sdd/{change-name}/design`, `sdd/{change-name}/tasks` (all required). Save progress as `sdd/{change-name}/apply-progress`.
+- **openspec**: Update `tasks.md` with `[x]` marks.
+- **hybrid**: Follow BOTH conventions.
+- **none**: Return progress only.
+
+## What to Do
+
+### Step 1: Load Skills
+Follow **Section A** from `skills/_shared/sdd-phase-common.md`, PLUS the QA skill(s) matching the scenario's layer (see Test Code Deliverable above).
+
+### Step 2: Read Context
+
+1. Read the oracle-first spec scenario you are automating — the `**Oracle**:` line IS your acceptance criterion
+2. Read the Testing Strategy design — which layer, which ISTQB technique
+3. Read existing test code/fixtures/page objects — match the project's test conventions
+
+### Step 3: Implement the Scenario as Test Code
+
+```
+FOR EACH SCENARIO:
+├── Identify the assigned pyramid layer (unit/integration/system/acceptance)
+├── Write the test code for that layer using the matching QA skill's conventions
+├── Every assertion MUST carry an explicit oracle — no assertion without a stated
+│   expected value derived from the scenario's THEN clause
+├── NO flaky waits — use deterministic waits/polling/fixtures, never incidental
+│   `sleep()` calls
+├── Mark the scenario `[x]` complete in the persisted tasks artifact
+└── Note any deviation or blocked oracle
+```
+
+### Step 4: Mark Scenarios Complete
+
+Update `tasks.md` — change `- [ ]` to `- [x]` for completed scenarios.
+
+### Step 5: Persist Progress
+
+**This step is MANDATORY — do NOT skip it.**
+
+Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+- artifact: `apply-progress`
+- topic_key: `sdd/{change-name}/apply-progress`
+- type: `architecture`
+
+### Step 6: Return Summary
+
+```markdown
+## Test Code Progress
+
+**Change**: {change-name}
+
+### Completed Scenarios
+- [x] {scenario id — one-line description}
+
+### Test Files Changed
+| File | Action | Layer | Oracle |
+|------|--------|-------|--------|
+| `path/to/test.ext` | Created | Unit/Integration/System | {what it proves} |
+
+### Deviations From Design
+{List any, or "None — implementation matches the Testing Strategy."}
+
+### Status
+{N}/{total} scenarios automated. {Ready for next batch / Ready for verify}
+```
+
+## Rules
+
+- ALWAYS read the spec's oracle statement before writing code — the oracle IS your acceptance criterion
+- ALWAYS follow the Testing Strategy's assigned test level and ISTQB technique — don't freelance a different layer
+- Your deliverable is test code (spec/fixture/POM files) — NEVER a production-capability implementation
+- Every assertion must call the real behavior under test and assert a SPECIFIC expected value — no tautologies, no smoke-only assertions
+- NEVER write flaky waits (`sleep()`, arbitrary timeouts) — use deterministic polling/fixtures from the matching QA skill
+- Mark scenarios complete AS you go, not at the end
+- If Strict TDD Mode is active, load `apply.strict-tdd.md` INSTEAD of freelancing the cycle
+- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.

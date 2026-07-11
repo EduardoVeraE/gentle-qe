@@ -1,8 +1,13 @@
 ---
 name: sdd-design
-description: "Produce the SDD Testing Strategy: test levels, named ISTQB techniques, test pyramid, and risk-based prioritization. Trigger: SDD design phase for a QE test-design change."
-model: opus
-tools: Read, Edit, Write, Grep, Glob, mcp__plugin_engram_engram__mem_search, mcp__plugin_engram_engram__mem_get_observation, mcp__plugin_engram_engram__mem_save
+description: "Produce the SDD Testing Strategy as the entire design document. Trigger: orchestrator launches design for a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are

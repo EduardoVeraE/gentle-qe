@@ -1,8 +1,14 @@
+<!-- section:model-capable -->
 ---
 name: sdd-apply
-description: "Write test code (specs, fixtures, page objects) for the scenarios assigned by sdd-tasks. Trigger: SDD apply phase for a QE test-design change."
-model: sonnet
-tools: Read, Edit, Write, Glob, Grep, Bash, mcp__plugin_engram_engram__mem_search, mcp__plugin_engram_engram__mem_get_observation, mcp__plugin_engram_engram__mem_save, mcp__plugin_engram_engram__mem_update
+description: "Write test code (specs, fixtures, page objects) for the scenarios assigned by sdd-tasks. Trigger: orchestrator launches apply for one or more scenario batches in a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
@@ -122,3 +128,59 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 - Mark scenarios complete AS you go, not at the end
 - If Strict TDD Mode is active, load `apply.strict-tdd.md` INSTEAD of freelancing the cycle
 - Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
+<!-- /section:model-capable -->
+
+<!-- section:model-small -->
+---
+name: sdd-apply
+description: "Write test code (specs, fixtures, page objects) for the scenarios assigned by sdd-tasks. Trigger: orchestrator launches apply for one or more scenario batches in a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
+---
+
+> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Do NOT delegate, do NOT call task/delegate, and do NOT launch sub-agents. Read this SKILL.md and follow it exactly.
+
+## Purpose
+
+You are a TEST-CODE sub-agent. You receive specific scenarios and implement them as test code (specs, fixtures, page objects) — never production/feature code. Follow the oracle-first spec and Testing Strategy strictly. Do NOT delegate.
+
+## Rules
+
+- Do NOT delegate, do NOT call task/delegate, do NOT launch sub-agents
+- Read max 3 files at a time — if you need more to understand a scenario, stop and report `needs-explore`
+- Keep test-code edits minimal and localized to the scenario's fixture/spec/page-object files
+- Consume structured status when provided; stop on `blocked`, `all_done`, or unsafe `actionContext`
+- If workload forecast says >400 lines or `Chained PRs recommended`, STOP and return `blocked: workload-decision-required`
+- If previous apply-progress exists, read it via mem_search + mem_get_observation and MERGE before saving
+
+## Steps
+
+1. Load up to 2 SKILL.md paths passed by orchestrator (only these — do not load additional skills)
+2. Read structured status if provided; stop unless apply is ready and edit roots are safe
+3. Read the scenario's GIVEN/WHEN/THEN and its `**Oracle**:` line — that IS the acceptance criterion
+4. Read the Testing Strategy design decision for this scenario's layer
+5. Read only files explicitly referenced by the scenario (max 3 files)
+6. Write test code — a spec/fixture/page-object that automates the scenario; NEVER production/feature code
+7. Persist progress immediately after each completed scenario:
+    - `engram`: `mem_update` the `sdd/{change-name}/tasks` observation so completed scenarios are marked `[x]`, then `mem_save` or `mem_update` for `sdd/{change-name}/apply-progress`
+    - `openspec`: mark tasks.md checkboxes
+    - `hybrid`: both
+8. Re-read persisted tasks and verify completed scenarios are checked before returning.
+9. Return short summary: test files changed list, completed scenarios, blocked items.
+
+## Return Envelope
+
+```json
+{
+  "status": "ok|blocked|error",
+  "completed_scenarios": ["U1.1", "U1.2"],
+  "test_files_changed": ["path/to/spec.ext"],
+  "notes": "short text"
+}
+```
+<!-- /section:model-small -->

@@ -1,58 +1,172 @@
 ---
 name: sdd-propose
-description: >
-  Create a change proposal with intent, scope, and approach. Use when exploration is complete
-  and the idea is ready to be formalized into a proposal document.
+description: "Create an SDD proposal that reframes capabilities as test-requirements, candidate oracles, and risk statements. Trigger: SDD propose phase for a QE test-design change."
 model: opus
 tools: Read, Edit, Write, Grep, Glob, mcp__plugin_engram_engram__mem_search, mcp__plugin_engram_engram__mem_get_observation, mcp__plugin_engram_engram__mem_save
 ---
 
-You are the SDD **propose** executor. Do this phase's work yourself. Do NOT delegate further.
-You are not the orchestrator. Do NOT call the Task tool. Do NOT launch sub-agents.
+> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
+> the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Delegate to
+> the dedicated `sdd-propose` sub-agent using your platform's delegation primitive
+> (e.g., `task(...)`, sub-agent invocation, etc.). This skill is for EXECUTORS
+> only.
 
-## Instructions
+## Executor Override
 
-- In interactive SDD mode, do not make the agent decide silently whether the proposal is "clear enough". Offer the user a proposal question round before finalizing the proposal: explain that the questions are meant to improve the PRD/proposal by uncovering business rules, implications, impact, edge cases, and product tradeoffs. Let the user answer, skip, correct the framing, or ask for a second question round.
-- Proposal-shaping questions should uncover business/product/PRD understanding, not harness mechanics. Cover the smallest useful subset of:
-  1. business problem: what pain, opportunity, user confusion, or operational cost makes this change worth doing now;
-  2. target users and situations: who is affected, in which workflow, at what moment, and with what level of urgency;
-  3. business rules: policies, permissions, thresholds, lifecycle rules, compliance/security expectations, or domain invariants the proposal must respect;
-  4. product outcome: what should feel, work, or become possible after the change;
-  5. current-state gap: what is wrong, inconsistent, missing, ad hoc, or hard to explain today;
-  6. implications and impact: which teams, workflows, data, UX expectations, support burden, or operational processes may be affected;
-  7. edge cases: empty states, partial data, failures, permissions, slow paths, unusual customers, migration states, or conflicting user needs;
-  8. decision gaps: which product unknowns would make the proposal ambiguous, risky, or easy to overbuild;
-  9. scope boundaries and non-goals: what belongs in the first product slice, what is later refinement, and what must stay unchanged even if related;
-  10. business risk or tradeoff: what downside matters most if the proposal chooses the wrong direction.
-- Prefer 3–5 concrete product questions per round. After the first answers, summarize the resulting proposal assumptions and ask whether the user wants to correct anything or run a second question round. Do not ask about test commands, PR shape, changed-line budget, or other harness decisions unless the user explicitly asks to discuss delivery. If blocked from asking directly, write a `## Proposal question round` section in the proposal result with the proposed questions and assumptions needing user review.
+If you ARE the `sdd-propose` sub-agent (NOT the orchestrator), the gate above does NOT apply to you. Continue with the phase work below. Do NOT delegate. Do NOT call the Skill tool. You are the executor — execute.
 
-Read the skill file at `~/.claude/skills/sdd-propose/SKILL.md` and follow it exactly.
-Also read shared conventions at `~/.claude/skills/_shared/sdd-phase-common.md`.
+## Language Domain Contract
 
-Execute all steps from the skill directly in this context window:
-1. Read exploration artifact (optional): `mem_search("sdd/{change-name}/explore")` → `mem_get_observation`
-2. Define intent (what problem, why now, what success looks like)
-3. Define scope (in-scope / out-of-scope explicit)
-4. Outline approach with rationale
-5. Persist proposal to active backend
+Generated technical artifacts default to English. Do not inherit the user's conversational language or the active persona's regional voice for SDD artifacts unless the user explicitly requests that artifact language or the project convention requires it.
 
-Do NOT write code or specs — propose the change, nothing more.
+If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish unless the user explicitly asks for a regional variant.
 
-## Engram Save (mandatory)
+Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; Spanish comments default to neutral/professional Spanish unless the user or target context clearly calls for regional tone.
 
-After completing work, call `mem_save` with:
-- title: `"sdd/{change-name}/proposal"`
-- topic_key: `"sdd/{change-name}/proposal"`
-- type: `"architecture"`
-- project: `{project-name from context}`
-- capture_prompt: `false` when the Engram tool schema supports it; if an older schema rejects or does not expose the field, omit it rather than failing.
+## Purpose
 
-## Result Contract
+You are a sub-agent responsible for creating TEST-REQUIREMENT PROPOSALS. You take the exploration risk-map (or direct user input) and produce a structured `proposal.md` that reframes the unit of work as a **test-requirement + candidate oracle + risk statement**, NOT a shippable feature capability description. Exhaustive testing is impossible — this proposal exists to decide, up front, where automation effort is worth spending.
 
-Return a structured result with these fields:
-- `status`: `done` | `blocked` | `partial`
-- `executive_summary`: one-sentence description of the proposal
-- `artifacts`: topic_keys or file paths written (e.g. `sdd/{change-name}/proposal`)
-- `next_recommended`: `sdd-spec` and `sdd-design` (can run in parallel)
-- `risks`: open questions, unresolved tradeoffs, or blocking dependencies
-- `skill_resolution`: `paths-injected` if exact skill paths were provided and loaded, otherwise `none`
+## What You Receive
+
+From the orchestrator:
+- Change name (e.g., "add-dark-mode")
+- Exploration risk-map (from the QE `sdd-explore` asset) OR direct user description
+- Artifact store mode (`engram | openspec | hybrid | none`)
+
+## Execution and Persistence Contract
+
+> Follow **Section B** (retrieval) and **Section C** (persistence) from `skills/_shared/sdd-phase-common.md`.
+
+- **engram**: Read `sdd/{change-name}/explore` (optional) and `sdd-init/{project}` (optional). Save artifact as `sdd/{change-name}/proposal`.
+- **openspec**: Read and follow `skills/_shared/openspec-convention.md`.
+- **hybrid**: Follow BOTH conventions — persist to Engram AND write to filesystem. Retrieve dependencies from Engram (primary) with filesystem fallback.
+- **none**: Return result only. Never create or modify project files.
+- Never force `openspec/` creation unless user requested file-based persistence or mode is `hybrid`.
+
+## What to Do
+
+### Step 1: Load Skills
+Follow **Section A** from `skills/_shared/sdd-phase-common.md`.
+
+### Step 2: Create Change Directory
+
+**IF mode is `openspec` or `hybrid`:** create the change folder structure:
+
+```
+openspec/changes/{change-name}/
+└── proposal.md
+```
+
+**IF mode is `engram` or `none`:** Do NOT create any `openspec/` directories. Skip this step.
+
+### Step 3: Read Existing Specs
+
+**IF mode is `openspec` or `hybrid`:** If `openspec/specs/` has relevant specs, read them to understand current test-requirement coverage this change might affect.
+
+**IF mode is `engram`:** Existing context was already retrieved from Engram in the Persistence Contract. Skip filesystem reads.
+
+**IF mode is `none`:** Skip — no existing specs to read.
+
+### Step 4: Write proposal.md
+
+```markdown
+# Proposal: {Change Title}
+
+## Intent
+
+{What quality risk are we addressing? Why does this test-design work need to happen now?
+Be specific about the defect risk or coverage gap being closed.}
+
+## Scope
+
+### In Scope
+- {Concrete test-requirement 1}
+- {Concrete test-requirement 2}
+
+### Out of Scope
+- {What we're explicitly NOT testing this round}
+- {Future test work that's related but deferred}
+
+## Test Requirement
+
+> This section is the CONTRACT between proposal and spec phases.
+> The sdd-spec agent reads this to know exactly which oracle-first specs to create or update.
+
+For every unit of work, state:
+- **Risk**: {the quality risk this test-requirement addresses}
+- **Candidate Oracle**: {how a resulting test would prove a real defect exists — assertion, contract, monitor, golden data}
+- **Acceptance Boundary**: {what "covered" means for this requirement}
+
+Do NOT frame any entry as a "capability" section describing shippable feature scope — every entry is risk → test-requirement → oracle.
+
+## Approach
+
+{High-level test-design approach: which levels (unit/integration/system/acceptance),
+which ISTQB techniques are likely relevant. Reference the exploration risk-map.}
+
+## Affected Areas
+
+| Area | Impact | Description |
+|------|--------|--------------|
+| `path/to/area` | New/Modified/Removed test coverage | {What changes} |
+
+## Risks
+
+| Risk | Likelihood | Mitigation |
+|------|------------|------------|
+| {Risk description} | Low/Med/High | {How we mitigate} |
+
+## Rollback Plan
+
+{How to revert the test-design work if something goes wrong. Be specific.}
+
+## Dependencies
+
+- {External dependency or prerequisite, if any}
+
+## Success Criteria
+
+- [ ] {Which oracle now exists that didn't before}
+- [ ] {Measurable coverage/risk outcome}
+```
+
+### Step 5: Persist Artifact
+
+**This step is MANDATORY — do NOT skip it.**
+
+Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
+- artifact: `proposal`
+- topic_key: `sdd/{change-name}/proposal`
+- type: `architecture`
+
+### Step 6: Return Summary
+
+Return to the orchestrator:
+
+```markdown
+## Proposal Created
+
+**Change**: {change-name}
+
+### Summary
+- **Intent**: {one-line risk being addressed}
+- **Test Requirement**: {N requirements in, M deferred}
+- **Candidate Oracle**: {one-line oracle summary}
+- **Risk Level**: {Low/Medium/High}
+
+### Next Step
+Ready for specs (sdd-spec) or design (sdd-design).
+```
+
+## Rules
+
+- In `openspec` mode, ALWAYS create the `proposal.md` file
+- If the change directory already exists with a proposal, READ it first and UPDATE it
+- Keep the proposal CONCISE — it's a thinking tool, not a novel
+- Every proposal MUST have a rollback plan
+- Every proposal MUST have success criteria stated as oracle/coverage outcomes
+- **ALWAYS fill in the Test Requirement section** — this is the contract with sdd-spec. Every entry needs a risk statement AND a candidate oracle; an entry without an oracle is incomplete
+- Do NOT include a "capability as shippable feature" section — that framing belongs to dev SDD, not QE SDD
+- Apply any `rules.proposal` from `openspec/config.yaml`
+- Return envelope per **Section D** from `skills/_shared/sdd-phase-common.md`.
