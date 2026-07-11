@@ -57,7 +57,7 @@ func NormalizeInstallFlags(flags InstallFlags, detection system.DetectionResult)
 	if err != nil {
 		return InstallInput{}, err
 	}
-	selection.SDDMode = sddMode
+	selection.SDDMode = model.QEDefaultSDDMode(sddMode) // overlay Gentle-QE (ancla qe-overlay)
 
 	scope, err := ResolveInstallScope(flags.Scope)
 	if err != nil {

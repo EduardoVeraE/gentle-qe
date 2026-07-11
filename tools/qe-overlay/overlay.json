@@ -34,7 +34,17 @@
     "internal/assets/skills/_qe-sdd/verify.strict-tdd-verify.md",
     "internal/components/skills/inject_qe.go",
     "internal/components/sdd/inject_qe.go",
-    "internal/components/sdd/qe_sdd_override_qe_test.go"
+    "internal/components/sdd/qe_sdd_override_qe_test.go",
+    "internal/tui/model_qe.go",
+    "internal/tui/screens/welcome_qe.go",
+    "internal/tui/model_qe_test.go",
+    "internal/tui/screens/welcome_qe_test.go",
+    "internal/tui/screens/persona_preset_qe_test.go",
+    "internal/tui/qe_seam_test.go",
+    "internal/tui/screens/qe_seam_test.go",
+    "internal/cli/qe_seam_test.go",
+    "internal/model/seam_qe.go",
+    "internal/model/seam_qe_test.go"
   ],
   "brandingAnchors": [
     {
@@ -109,19 +119,47 @@
     },
     {
       "file": "internal/tui/screens/preset.go",
-      "mustContain": "qePresetOptions"
+      "mustContain": "qePresetOptionsForBuild"
     },
     {
       "file": "internal/tui/screens/persona.go",
-      "mustContain": "qePersonaOptions"
+      "mustContain": "qePersonaOptionsForBuild"
+    },
+    {
+      "file": "internal/tui/screens/welcome.go",
+      "mustContain": "qeWelcomeOptions"
     },
     {
       "file": "internal/tui/model.go",
       "mustContain": "model.PresetQESDET"
     },
     {
+      "file": "internal/tui/model.go",
+      "mustContain": "qeFilterPickerFlow"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "qeSuppressCommunityTools"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "qeSuppressOpenCodePlugins"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "qeWelcomeCanonicalCursor"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "QEDefaultSDDMode"
+    },
+    {
       "file": "internal/cli/validate.go",
       "mustContain": "qeDefaultPreset"
+    },
+    {
+      "file": "internal/cli/validate.go",
+      "mustContain": "QEDefaultSDDMode"
     },
     {
       "file": "internal/components/skills/inject.go",
