@@ -1,9 +1,13 @@
 ---
 name: sdd-tasks
-description: "Enumerate automatable GIVEN/WHEN/THEN scenarios grouped by test level. Trigger: SDD tasks phase for a QE test-design change."
-tools: ["@builtin", "@engram"]
-model: auto
-includeMcpJson: true
+description: "Enumerate automatable GIVEN/WHEN/THEN scenarios by test level. Trigger: orchestrator launches task planning for a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are

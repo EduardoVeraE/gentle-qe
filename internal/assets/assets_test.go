@@ -1081,12 +1081,14 @@ func TestEmbeddedAssetCount(t *testing.T) {
 	}
 
 	// 23 upstream skill directories (10 SDD + judgment-day + 6 foundation + 4 sustainable-review + hermes-ephemeral-delegation + _shared)
-	// + 7 Gentle-QE QE/SDET skills (qa-manual-istqb, qa-owasp-security, api-testing, playwright-e2e-testing, a11y-playwright-testing, k6-load-test, selenium-e2e-java).
-	if skillDirs != 30 {
-		t.Fatalf("expected 30 skill directories, got %d", skillDirs)
+	// + 7 Gentle-QE QE/SDET skills (qa-manual-istqb, qa-owasp-security, api-testing, playwright-e2e-testing, a11y-playwright-testing, k6-load-test, selenium-e2e-java)
+	// + 1 Gentle-QE net-new override directory (_qe-sdd: 9 QE test-design assets that replace dev SDD phase content at read time — not an installable skill, no root SKILL.md).
+	if skillDirs != 31 {
+		t.Fatalf("expected 31 skill directories, got %d", skillDirs)
 	}
 
-	// Verify each skill directory has a SKILL.md.
+	// Verify each skill directory has a SKILL.md, except the shared/override
+	// meta-directories which are not installable skills themselves.
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -1096,6 +1098,15 @@ func TestEmbeddedAssetCount(t *testing.T) {
 				sharedPath := "skills/_shared/" + sharedFile
 				if _, err := Read(sharedPath); err != nil {
 					t.Fatalf("shared directory missing %q: %v", sharedFile, err)
+				}
+			}
+			continue
+		}
+		if entry.Name() == "_qe-sdd" {
+			for _, phase := range []string{"explore", "propose", "spec", "design", "tasks", "apply", "verify"} {
+				qePath := "skills/_qe-sdd/" + phase + ".md"
+				if _, err := Read(qePath); err != nil {
+					t.Fatalf("_qe-sdd directory missing %q: %v", qePath, err)
 				}
 			}
 			continue

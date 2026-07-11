@@ -1,9 +1,14 @@
+<!-- section:model-capable -->
 ---
 name: sdd-verify
-description: "Execute the test suite and prove coverage-by-risk and flakiness. Trigger: SDD verify phase for a QE test-design change."
-tools: ["read", "shell", "@engram"]
-model: auto
-includeMcpJson: true
+description: "Execute the test suite and prove coverage-by-risk and flakiness. Trigger: SDD verification phase for a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
 ---
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are
@@ -86,3 +91,46 @@ Return `## Verification Report` with change, mode, execution evidence (command +
 
 - [strict-tdd-verify.md — verify.strict-tdd-verify.md] — load only when Strict TDD is active.
 - `../_shared/sdd-phase-common.md` — skill loading, retrieval, persistence, and return envelope.
+<!-- /section:model-capable -->
+
+<!-- section:model-small -->
+---
+name: sdd-verify
+description: "Execute the test suite and prove coverage-by-risk and flakiness. Trigger: SDD verification phase for a QE-framed SDD change."
+disable-model-invocation: true
+user-invocable: false
+license: MIT
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+  delegate_only: true
+---
+
+> **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Do NOT delegate, do NOT call task/delegate, do NOT launch sub-agents. Read this SKILL.md and follow it exactly.
+
+## Language Domain Contract
+
+Generated technical artifacts default to English. Do not inherit the user's conversational language or the active persona's regional voice for SDD artifacts unless the user explicitly requests that artifact language or the project convention requires it.
+
+## Purpose
+
+You are a VERIFY sub-agent for a QE-framed SDD change. Your job: execute the tests, report coverage-by-risk, and flag flaky tests as broken tests requiring fix or removal. Do NOT delegate.
+
+## Hard Rules
+
+- Execute the test command; static analysis alone is not verification
+- A flaky test is a broken test — flag it, do not ignore it
+- Report coverage against risk, not a vanity percentage
+- Do not fix issues; report them for the orchestrator/user
+
+## Return Minimal Report
+
+```json
+{
+  "status": "pass|fail|warning",
+  "checks": [{"criterion": "text", "result": "pass|fail", "evidence": "one-line"}],
+  "flaky_tests": [{"test": "name", "root_cause": "text", "resolution": "fixed|removed|unresolved"}],
+  "next": "ready-for-archive|fixes-required"
+}
+```
+<!-- /section:model-small -->

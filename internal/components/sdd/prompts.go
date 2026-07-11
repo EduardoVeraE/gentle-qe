@@ -6,6 +6,7 @@ import (
 
 	"github.com/gentleman-programming/gentle-ai/internal/assets"
 	"github.com/gentleman-programming/gentle-ai/internal/components/filemerge"
+	"github.com/gentleman-programming/gentle-ai/internal/components/skills"
 )
 
 // readSkillContent reads the embedded skill content for the given phase.
@@ -71,6 +72,17 @@ func WriteSharedPromptFiles(homeDir string, phaseCapabilities map[string]string,
 		// if no matching section marker is found — correct behavior for phases
 		// that don't yet have conditional sections).
 		content := extractModelSection(skillContent, capability)
+		// QE override: serve QE test-design content instead of dev content,
+		// BEFORE CodeGraph guidance injection so guidance lands in the QE
+		// body. Fail-open — ok=false (non-SDD phase or no QE asset, e.g.
+		// archive/onboard/init) leaves content as the upstream dev asset.
+		// Re-apply capability extraction to the QE content itself: a couple
+		// of QE assets (sdd-apply, sdd-verify) carry their own
+		// model-capable/model-small sections mirroring the dev asset they
+		// replace; extraction is a harmless no-op for QE assets that don't.
+		if qe, ok := skills.QESDDTestingContent(phase, "SKILL.md"); ok {
+			content = extractModelSection(qe, capability)
+		}
 		content = injectCodeGraphGuidanceIntoPrompt(content, guidance)
 
 		path := filepath.Join(promptDir, phase+".md")

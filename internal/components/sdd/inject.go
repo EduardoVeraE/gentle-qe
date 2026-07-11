@@ -669,6 +669,15 @@ func Inject(homeDir string, adapter agents.Adapter, sddMode model.SDDModeID, opt
 			// Copy all files (not just .md) to support Kimi's YAML-based agents
 			contentStr := assets.MustRead(embeddedDir + "/" + entry.Name())
 
+			// subAgentCapability tracks the model capability ("capable" or
+			// "small") resolved for this phase by whichever adapter-specific
+			// resolver below applies. Defaults to "capable" — the same
+			// default used by Path 1 (skills.InjectWithCapability) and
+			// Path 3 (WriteSharedPromptFiles) — so QE assets with
+			// model-capable/model-small sections are extracted consistently
+			// across all three injector paths.
+			subAgentCapability := "capable"
+
 			// Resolve {{KIRO_MODEL}} placeholder for adapters that support it (e.g. Kiro).
 			// Non-Kiro adapters (Cursor, etc.) don't implement kiroModelResolver and are unaffected.
 			if kmr, ok := adapter.(kiroModelResolver); ok {
@@ -688,7 +697,9 @@ func Inject(homeDir string, adapter agents.Adapter, sddMode model.SDDModeID, opt
 						alias = model.KiroModelAlias(d)
 					}
 				}
-				contentStr = strings.ReplaceAll(contentStr, "{{KIRO_MODEL}}", kmr.KiroModelID(alias))
+				resolvedModelID := kmr.KiroModelID(alias)
+				contentStr = strings.ReplaceAll(contentStr, "{{KIRO_MODEL}}", resolvedModelID)
+				subAgentCapability = model.ModelCapability(resolvedModelID)
 			}
 
 			// Resolve {{CLAUDE_MODEL}} placeholder for adapters that support it (e.g. Claude Code).
@@ -698,9 +709,25 @@ func Inject(homeDir string, adapter agents.Adapter, sddMode model.SDDModeID, opt
 				assignment := resolveClaudePhaseAssignment(opts.ClaudeModelAssignments, opts.ClaudePhaseAssignments, phase)
 				contentStr = strings.ReplaceAll(contentStr, "{{CLAUDE_MODEL}}", cmr.ClaudeModelID(assignment.Model))
 				contentStr = injectClaudeEffortFrontmatter(contentStr, assignment)
+				subAgentCapability = model.ModelCapability(assignment.Model.String())
 			}
 
 			if isMarkdownSubAgentPromptFile(entry.Name()) {
+				// QE override: body-swap the native sub-agent wrapper with QE
+				// test-design content before CodeGraph guidance is injected,
+				// so the guidance lands in the new QE body. Fail-open — ok=false
+				// (non-SDD phase, or no QE asset, e.g. archive/onboard/init)
+				// leaves the dev wrapper untouched.
+				phase := strings.TrimSuffix(entry.Name(), ".md")
+				if qe, ok := skills.QESDDTestingContent(phase, "SKILL.md"); ok {
+					// Extract the section matching the resolved capability
+					// first (mirrors Path 1/Path 3), THEN swap the wrapper
+					// body — otherwise apply/verify (which carry their own
+					// model-capable/model-small sections) would serve both
+					// variants concatenated with the section markers intact.
+					qe = extractModelSection(qe, subAgentCapability)
+					contentStr = qeSwapNativeAgentBody(contentStr, qe, qeSubAgentDescription(phase))
+				}
 				contentStr = injectCodeGraphGuidanceIntoPrompt(contentStr, opts.CodeGraphGuidanceMarkdown)
 			}
 			outPath := filepath.Join(agentsDir, entry.Name())

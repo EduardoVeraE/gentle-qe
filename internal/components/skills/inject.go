@@ -83,6 +83,14 @@ func InjectWithCapability(homeDir string, adapter agents.Adapter, skillIDs []mod
 			}
 			path := filepath.Join(destDir, relPath)
 
+			// QE override: serve QE test-design content instead of dev content
+			// for SDD skills. Fail-open — ok=false (non-SDD id, or no QE asset
+			// for this phase/file, e.g. archive/onboard/init) leaves content
+			// as the upstream dev asset.
+			if qe, ok := QESDDTestingContent(string(id), filepath.ToSlash(relPath)); ok {
+				content = qe
+			}
+
 			// Extract model section if capability is set (non-empty).
 			if capability != "" {
 				content = extractModelSection(content, capability)
