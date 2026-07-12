@@ -3,13 +3,35 @@
 //
 // Modos:
 //
-//	go run ./tools/qe-overlay verify   Chequea que el overlay siga intacto tras un
-//	                                   merge del upstream y reporta drift (skills
-//	                                   nuevos del upstream, anclas reescritas).
-//	go run ./tools/qe-overlay accept   Absorbe el drift detectado actualizando el
-//	                                   manifiesto (known upstream skills).
+//	go run ./tools/qe-overlay verify        Chequea que el overlay siga intacto tras
+//	                                        un merge del upstream y reporta drift
+//	                                        (skills nuevos del upstream, anclas
+//	                                        reescritas). Las anclas se verifican por
+//	                                        CONTENIDO (strings.Contains): confirma que
+//	                                        la línea de anclaje siga presente, pero no
+//	                                        detecta una línea de lógica espuria
+//	                                        agregada junto a ella en un archivo
+//	                                        upstream.
+//	go run ./tools/qe-overlay verify --diff Corre verify y además el diff real (ver
+//	                                        abajo).
+//	go run ./tools/qe-overlay diff          Diff REAL contra el baseline del upstream
+//	                                        (merge-base HEAD upstream/main): por cada
+//	                                        archivo anclado (inlineAnchors +
+//	                                        brandingAnchors), examina las líneas
+//	                                        agregadas/modificadas y falla si alguna no
+//	                                        es explicable por un mustContain
+//	                                        registrado, un marcador de ancla
+//	                                        (`overlay Gentle-QE` / `ancla qe-overlay`)
+//	                                        o una referencia a `branding.*`. Requiere
+//	                                        el remote 'upstream' fetcheado
+//	                                        localmente; si no está disponible, degrada
+//	                                        con un warning y exit 0 (no bloquea CI).
+//	                                        Detalle de la heurística: diff.go.
+//	go run ./tools/qe-overlay accept        Absorbe el drift detectado actualizando el
+//	                                        manifiesto (known upstream skills).
 //
 // No tiene dependencias externas: lee tools/qe-overlay/overlay.json con la stdlib.
+// El modo `diff` sí invoca el binario `git` (merge-base/diff/cat-file) vía os/exec.
 // Está pensado para correrse desde la raíz del repo (donde está go.mod).
 package main
 
@@ -50,7 +72,7 @@ type manifest struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "uso: qe-overlay <verify|accept>")
+		fmt.Fprintln(os.Stderr, "uso: qe-overlay <verify [--diff]|diff|accept>")
 		os.Exit(2)
 	}
 
@@ -62,11 +84,19 @@ func main() {
 
 	switch os.Args[1] {
 	case "verify":
-		os.Exit(runVerify(m))
+		code := runVerify(m)
+		if len(os.Args) > 2 && os.Args[2] == "--diff" {
+			if diffCode := runDiff(m); diffCode > code {
+				code = diffCode
+			}
+		}
+		os.Exit(code)
+	case "diff":
+		os.Exit(runDiff(m))
 	case "accept":
 		os.Exit(runAccept(m))
 	default:
-		fmt.Fprintf(os.Stderr, "modo desconocido %q (usa verify|accept)\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "modo desconocido %q (usa verify|diff|accept)\n", os.Args[1])
 		os.Exit(2)
 	}
 }

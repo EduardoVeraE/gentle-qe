@@ -32,8 +32,10 @@ anclaje (marcados en el código con `// ... (ancla qe-overlay)`).
 ## Uso de la herramienta
 
 ```bash
-go run ./tools/qe-overlay verify   # ¿overlay intacto? ¿drift del upstream?
-go run ./tools/qe-overlay accept   # absorbe skills nuevos del upstream al manifiesto
+go run ./tools/qe-overlay verify         # ¿overlay intacto? ¿drift del upstream?
+go run ./tools/qe-overlay verify --diff  # verify + diff real (ver abajo)
+go run ./tools/qe-overlay diff           # solo el diff real contra el baseline upstream
+go run ./tools/qe-overlay accept         # absorbe skills nuevos del upstream al manifiesto
 ```
 
 `verify` (exit ≠ 0 si hay problemas) chequea: directorios net-new presentes,
@@ -42,6 +44,37 @@ un solo archivo vacío aborta toda la inyección de skills al instalar, y `//go:
 arrastra hasta dotfiles vacíos como `.gitkeep`), archivos `_qe.go` presentes, anclas de
 branding intactas, delegaciones inline intactas, y skills upstream nuevos sin clasificar.
 Corre en CI (job *Overlay Guard*).
+
+`verify` valida las anclas por **contenido** (`strings.Contains`): confirma que la
+línea de anclaje siga presente, pero NO detecta si además se coló una línea de lógica
+espuria (no-ancla) en un archivo upstream. Para eso existe `diff` (implementación en
+`diff.go`):
+
+- Calcula el baseline como `git merge-base HEAD upstream/main` (no `upstream/main`
+  directo, para no mezclar commits del upstream posteriores a la base del fork).
+- Para cada archivo con anclas (`inlineAnchors` + `brandingAnchors`) corre
+  `git diff -U10 <baseline> HEAD -- <archivo>` y agrupa el diff en hunks.
+- Un **hunk** es legítimo si alguna de sus líneas agregadas contiene un
+  `mustContain` registrado para ese archivo, un marcador (`overlay Gentle-QE` /
+  `ancla qe-overlay`), o una referencia a `branding.*` (branding minimalista sin
+  ancla explícita en la línea puntual). Un hunk sin ninguna línea sustantiva (solo
+  imports/blancos) también es legítimo — un import agregado que no se usa ya rompe
+  el build, y si se usa, la línea de uso pasa por el chequeo normal.
+- Cualquier otro hunk se reporta línea por línea (`archivo:línea`) y el exit code es 1.
+- Archivos net-new (sin contraparte en el baseline, p. ej.
+  `internal/branding/branding.go`) se saltean: el concepto de "edición espuria de
+  upstream" no aplica — ya lo cubre la sección de presencia de `verify`.
+- Si el remote `upstream` no está configurado o `upstream/main` no es resoluble
+  localmente (falta `git fetch upstream`), `diff` degrada con un warning y exit 0
+  — no bloquea CI en checkouts sin ese remote.
+
+**Límite conocido**: la legitimidad se evalúa a nivel de *hunk* (bloque de diff
+contiguo, contexto `-U10`), no línea por línea. Esto es deliberado: un cambio
+legítimo de anclaje suele tocar varias líneas contiguas (una guarda + su cuerpo, un
+comentario explicativo + la línea marcada) y alcanza con que UNA lleve el marcador.
+La contrapartida es que una línea espuria insertada a menos de ~20 líneas de una
+línea de ancla legítima, dentro del mismo hunk, no se detectaría. Ver
+`tools/qe-overlay/diff_test.go` para los casos cubiertos.
 
 El manifiesto `overlay.json` es la **fuente de verdad** del overlay: edítalo cuando
 agregues un skill QA, un nuevo archivo `_qe.go` o un nuevo punto de anclaje.
