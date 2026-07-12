@@ -45,7 +45,8 @@
     "internal/tui/screens/qe_seam_test.go",
     "internal/cli/qe_seam_test.go",
     "internal/model/seam_qe.go",
-    "internal/model/seam_qe_test.go"
+    "internal/model/seam_qe_test.go",
+    "internal/model/seamtest/seamtest.go"
   ],
   "brandingAnchors": [
     {
