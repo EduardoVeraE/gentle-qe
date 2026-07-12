@@ -10,7 +10,7 @@ import (
 
 func PersonaOptions() []model.PersonaID {
 	opts := []model.PersonaID{model.PersonaGentleman, model.PersonaGentlemanNeutralArtifacts, model.PersonaNeutral, model.PersonaCustom}
-	return append(opts, qePersonaOptions()...) // overlay Gentle-QE (ancla qe-overlay)
+	return qePersonaOptionsForBuild(opts) // overlay Gentle-QE (ancla qe-overlay)
 }
 
 var personaDescriptions = map[model.PersonaID]string{

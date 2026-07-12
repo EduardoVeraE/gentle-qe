@@ -601,6 +601,10 @@ func NewModel(detection system.DetectionResult, version string, installState ...
 		KiroModelAssignments:   installStateKiroAssignments(s.KiroModelAssignments),
 		ModelAssignments:       installStateModelAssignments(s.ModelAssignments),
 	}
+	// QE build forces SDDMode=single (seam ON), closing the ""→SDDModeMulti
+	// auto-promotion path (app.go:664-666, sync.go:681-682). With the seam OFF
+	// (dev tests) it leaves the upstream value — overlay Gentle-QE (ancla qe-overlay).
+	selection.SDDMode = model.QEDefaultSDDMode(selection.SDDMode)
 
 	return Model{
 		Screen:               ScreenWelcome,
@@ -1481,6 +1485,7 @@ func (m Model) shouldSkipModelPickerSeparator() bool {
 func (m Model) confirmSelection() (tea.Model, tea.Cmd) {
 	switch m.Screen {
 	case ScreenWelcome:
+		m.Cursor = qeWelcomeCanonicalCursor(m, m.Cursor) // overlay Gentle-QE (ancla qe-overlay)
 		switch m.Cursor {
 		case 0:
 			m.InstallFlowActive = true
@@ -3731,6 +3736,9 @@ func (m Model) shouldShowSkillPickerScreen() bool {
 }
 
 func (m Model) shouldShowOpenCodePluginsScreen() bool {
+	if qeSuppressOpenCodePlugins() { // overlay Gentle-QE (ancla qe-overlay)
+		return false
+	}
 	if !m.Selection.HasAgent(model.AgentOpenCode) {
 		return false
 	}
@@ -3747,6 +3755,9 @@ func (m Model) shouldShowOpenCodePluginsScreen() bool {
 }
 
 func (m Model) shouldShowCommunityToolsScreen() bool {
+	if qeSuppressCommunityTools() { // overlay Gentle-QE (ancla qe-overlay)
+		return false
+	}
 	return m.InstallFlowActive && !m.CommunityToolsStandalone
 }
 
@@ -3973,7 +3984,7 @@ func (m Model) pickerFlowSlice() []Screen {
 		// Non-custom: DependencyTree is the last anchor.
 		s = append(s, ScreenDependencyTree)
 	}
-	return s
+	return qeFilterPickerFlow(s) // overlay Gentle-QE (ancla qe-overlay)
 }
 
 // pickerNextScreen returns the screen that follows m.Screen in the picker flow

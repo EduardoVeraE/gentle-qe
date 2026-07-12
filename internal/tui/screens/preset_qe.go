@@ -5,15 +5,34 @@ import "github.com/gentleman-programming/gentle-ai/internal/model"
 // preset_qe.go — opciones de preset del overlay Gentle-QE para el picker.
 //
 // Las descripciones/labels se inyectan a los maps upstream vía init() (cero
-// edición inline). PresetOptions appendea qePresetOptions() con una sola línea.
+// edición inline). PresetOptions delega a qeFilterPresetOptions(opts) con una
+// sola línea; el parámetro opts (la lista dev-only upstream) se ignora a
+// propósito — el build QE siempre devuelve únicamente los presets QE, nunca
+// un append.
 
-func qePresetOptions() []model.PresetID {
+func qeFilterPresetOptions(_ []model.PresetID) []model.PresetID {
 	return []model.PresetID{
 		model.PresetQESDET,
 		model.PresetQEFront,
 		model.PresetQEAPI,
 		model.PresetQEPerf,
 	}
+}
+
+// qePresetOptionsForBuild is the seam-aware entry the PresetOptions anchor
+// calls. Seam ON (prod) → QE-only presets; seam OFF (tests) → upstream's
+// shipped behavior: the dev presets with the QE presets appended, so the
+// upstream preset tests pass unedited.
+func qePresetOptionsForBuild(opts []model.PresetID) []model.PresetID {
+	if !model.QEInstallerFlow {
+		return append(opts,
+			model.PresetQESDET,
+			model.PresetQEFront,
+			model.PresetQEAPI,
+			model.PresetQEPerf,
+		)
+	}
+	return qeFilterPresetOptions(opts)
 }
 
 func init() {
