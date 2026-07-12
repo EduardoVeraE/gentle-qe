@@ -254,8 +254,12 @@ var, ni estado persistido puede restaurarlo al flujo dev completo):
   path CLI (`internal/cli/validate.go:60`). Es explícito porque `""` se
   auto-promueve silenciosamente a `SDDModeMulti` cuando hay perfiles OpenCode
   presentes o detectados (`internal/app/app.go:664-666`,
-  `internal/cli/sync.go:681-682`) — fijar `single` cierra ese path de
-  auto-promoción de forma determinística. `single` no reduce capacidad SDD:
+  `internal/cli/sync.go:681-682`) — fijar `single` cierra ese path **en el flujo
+  de install**. ALCANCE: solo install. El flujo de Sync (`BuildSyncSelection`,
+  usado por `tuiSync`) NO pasa por `QEDefaultSDDMode`, así que con perfiles
+  OpenCode en disco el sync sigue promoviendo a Multi a propósito (los shared
+  prompt files y las refs `{file:...}` lo requieren) — es preservación de datos,
+  no una fuga. `single` no reduce capacidad SDD:
   el ciclo multi-agente de `gentle-qe-589` corre sobre inyección de
   skills/prompts (`ComponentSDD`), intacto bajo `single`; el knob `SDDMode`
   solo gobierna asignación de modelo por fase en OpenCode.

@@ -31,17 +31,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5.0.1
+        with:
+          # Full history so `verify --diff` can compute the merge-base against
+          # upstream/main for spurious-edit detection.
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6.4.0
         with:
           go-version-file: go.mod
 
+      # Fetch upstream so the diff baseline (merge-base HEAD upstream/main) is
+      # available. Graceful: if it fails, `verify --diff` degrades to a warning.
+      - name: Fetch upstream baseline
+        run: |
+          git remote add upstream https://github.com/Gentleman-Programming/gentle-ai.git || true
+          git fetch --no-tags upstream main
+
       # Falla si un merge del upstream rompió el overlay SDET (archivos _qe.go
       # ausentes, branding revertido, delegaciones inline reescritas) o si hay
-      # skills nuevos del upstream sin clasificar. Ver tools/qe-overlay.
+      # skills nuevos del upstream sin clasificar. `--diff` además compara contra
+      # el merge-base de upstream/main y falla si hay ediciones espurias
+      # (líneas no-ancla) en archivos upstream. Ver tools/qe-overlay.
       - name: Verify SDET overlay integrity and upstream drift
-        run: go run ./tools/qe-overlay verify
+        run: go run ./tools/qe-overlay verify --diff
 
   e2e-tests:
     name: E2E Tests (${{ matrix.platform.name }})

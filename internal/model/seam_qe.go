@@ -17,13 +17,18 @@ const qeFlowDefault = true
 // QEInstallerFlow gates the Gentle-QE unconditional installer flow. See above.
 var QEInstallerFlow = qeFlowDefault
 
-// QEDefaultSDDMode returns the SDD orchestrator mode for the QE build. With the
-// seam ON (production) it DEFAULTS an unset mode to SDDModeSingle — hiding the
-// installer's SDDMode screen and closing the ""→SDDModeMulti auto-promotion
-// path (app.go:664-666, sync.go:681-682) — for BOTH the TUI (NewModel, always
-// unset) and the CLI install path, keeping them in parity. An explicit mode
-// (e.g. CLI `--sdd-mode multi`) is respected, not overridden. With the seam OFF
-// (dev/parity tests) it returns the upstream value unchanged.
+// QEDefaultSDDMode returns the SDD orchestrator mode for the QE INSTALL flow.
+// With the seam ON (production) it DEFAULTS an unset mode to SDDModeSingle —
+// hiding the installer's SDDMode screen — for BOTH the TUI (NewModel, always
+// unset) and the CLI install path (validate.go), keeping them in parity. An
+// explicit mode (e.g. CLI `--sdd-mode multi`) is respected, not overridden.
+// With the seam OFF (dev/parity tests) it returns the upstream value unchanged.
+//
+// SCOPE: install only. The Sync flow (BuildSyncSelection, used by tuiSync) does
+// NOT route through here. If the user has OpenCode profiles on disk, sync
+// intentionally promotes an unset mode to Multi (sync.go) because shared prompt
+// files and {file:...} refs require it — that is data preservation, not a leak.
+// This function does not close the ""→Multi path outside install.
 func QEDefaultSDDMode(cur SDDModeID) SDDModeID {
 	if QEInstallerFlow && cur == "" {
 		return SDDModeSingle
