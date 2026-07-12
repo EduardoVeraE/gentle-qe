@@ -38,6 +38,7 @@
     "internal/tui/model_qe.go",
     "internal/tui/screens/welcome_qe.go",
     "internal/tui/model_qe_test.go",
+    "internal/tui/installer_flow_qe_test.go",
     "internal/tui/screens/welcome_qe_test.go",
     "internal/tui/screens/persona_preset_qe_test.go",
     "internal/tui/qe_seam_test.go",
