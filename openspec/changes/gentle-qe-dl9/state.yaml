@@ -1,0 +1,72 @@
+# DAG state for gentle-qe-dl9 — survives compaction.
+# Schema mirrors internal/assets/skills/_shared/sdd-status-contract.md
+# (no prior state.yaml precedent existed in this repo at creation time).
+
+change: gentle-qe-dl9
+schemaVersion: 1
+artifactStore: hybrid # openspec files + Engram (proposal/spec confirmed in Engram)
+
+dag:
+  proposal: done
+  specs: done
+  design: done
+  tasks: done
+  apply: partial # Phases 1-4, 3.1-3.3, 6.1, 6.3 done; Phase 5 + 6.2 blocked — see notes.blocker
+  verify: pending
+  archive: pending
+
+artifacts:
+  proposal: openspec/changes/gentle-qe-dl9/proposal.md
+  specs: openspec/changes/gentle-qe-dl9/specs/qe-installer-flow/spec.md
+  design: openspec/changes/gentle-qe-dl9/design.md
+  tasks: openspec/changes/gentle-qe-dl9/tasks.md
+  verifyReport: null
+
+engramTopics:
+  proposal: sdd/gentle-qe-dl9/proposal
+  explore: sdd/gentle-qe-dl9/explore
+  spec: sdd/gentle-qe-dl9/spec
+  tasks: sdd/gentle-qe-dl9/tasks
+
+dependencies:
+  proposal: all_done
+  specs: all_done
+  design: all_done
+  tasks: all_done
+  apply: partial
+  verify: blocked
+  archive: blocked
+
+taskProgress:
+  total: 30 # corrected from stale 22 in tasks-phase forecast; actual count of 1.1-6.3 items in tasks.md
+  completed: 26 # Phase 1 (6) + Phase 2 (8) + Phase 3 (4) + Phase 4 (6) + Phase 6 (6.1, 6.3 = 2)
+  pending: 4 # Phase 5 (5.1-5.3 = 3) not started + Phase 6.2 failed-as-specified (1); blocked pending decision
+  allComplete: false
+
+notes:
+  designReview: "judgment-day passed on design; 2 BLOCKERs closed and verified by orchestrator"
+  specVersion: "v2 — 6 requirements / 8 scenarios; oracle split (slice-membership vs Model.Screen non-equality); Req 6 relaxed to presence-only qe-overlay verify"
+  designAnchorCount: 8
+  chainStrategy: feature-branch-chain
+  chainedPRsRecommended: true
+  blocker: >
+    Applying the 8 approved anchors exactly as designed makes pickerFlowSlice(),
+    WelcomeOptions(), PersonaOptions(), PresetOptions() unconditionally QE-only,
+    which breaks 47 pre-existing upstream tests in internal/tui and
+    internal/tui/screens (including pickerFlowSlice()'s own dedicated unit test
+    suite and TestInstallNavigationRoundTrips — the exact regression oracle
+    task 6.2 names). This was not caught by design/judgment-day review. Phases
+    1-4 (all QE-specific code + unit tests), 3.1-3.3, 6.1, and 6.3 are done and
+    green. Phase 5 (integration tests) and 6.2 (regression check) are paused
+    pending a user/design decision: (a) accept the 47 upstream tests as
+    permanently incompatible with the QE-only fork and explicitly authorize
+    updating/removing them (a much larger scope than the declared 8 anchors,
+    and outside "zero upstream content edits" as currently scoped), or (b)
+    revisit the design so the QE filter does not alter the return contract of
+    functions with their own dedicated upstream unit tests, or (c) explicitly
+    accept the 47 failures as a known, permanent fork divergence and adjust
+    task 6.2's acceptance criterion accordingly.
+
+nextRecommended: sdd-apply (after blocker decision) or sdd-design (if revising the approach)
+blockedReasons:
+  - "47 pre-existing upstream tests in internal/tui + internal/tui/screens fail as a direct, unavoidable consequence of anchors 2.1/2.6/2.7/2.8 (see notes.blocker). Needs explicit user/design decision before Phase 5/6.2 can proceed."

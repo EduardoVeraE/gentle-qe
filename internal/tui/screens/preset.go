@@ -14,7 +14,7 @@ func PresetOptions() []model.PresetID {
 		model.PresetMinimal,
 		model.PresetCustom,
 	}
-	return append(opts, qePresetOptions()...) // overlay Gentle-QE (ancla qe-overlay)
+	return qePresetOptionsForBuild(opts) // overlay Gentle-QE (ancla qe-overlay)
 }
 
 var presetDescriptions = map[model.PresetID]string{
