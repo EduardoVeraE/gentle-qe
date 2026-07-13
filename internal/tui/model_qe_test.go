@@ -259,13 +259,14 @@ func TestQEModel_PickerFlowSliceNeverExposesDevOnlyScreens(t *testing.T) {
 
 	got := m.pickerFlowSlice()
 
-	for _, excluded := range []Screen{ScreenClaudeModelPicker, ScreenKiroModelPicker, ScreenCodexModelPicker, ScreenSDDMode} {
+	for _, excluded := range []Screen{ScreenClaudeModelPicker, ScreenKiroModelPicker, ScreenCodexModelPicker, ScreenSDDMode, ScreenStrictTDD} {
 		if qeScreenInSlice(got, excluded) {
 			t.Fatalf("m.pickerFlowSlice() = %v, still contains excluded screen %v (anchor not wired)", got, excluded)
 		}
 	}
-	if !qeScreenInSlice(got, ScreenStrictTDD) {
-		t.Fatalf("m.pickerFlowSlice() = %v, missing ScreenStrictTDD (ComponentSDD functionality must survive)", got)
+	// Hiding StrictTDD (like SDDMode) must not drop the underlying SDD component.
+	if !hasSelectedComponent(m.Selection.Components, model.ComponentSDD) {
+		t.Fatalf("Selection.Components = %v, want ComponentSDD preserved despite hidden StrictTDD screen", m.Selection.Components)
 	}
 }
 

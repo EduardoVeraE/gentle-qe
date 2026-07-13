@@ -34,6 +34,7 @@ var qeHiddenScreens = map[Screen]string{
 	ScreenSDDMode:           "ScreenSDDMode",
 	ScreenCommunityTools:    "ScreenCommunityTools",
 	ScreenOpenCodePlugins:   "ScreenOpenCodePlugins",
+	ScreenStrictTDD:         "ScreenStrictTDD",
 }
 
 // assertNotHiddenScreen fails the test if screen is one of the 6 QE-hidden
@@ -69,8 +70,7 @@ func TestQEInstallerFlow_HiddenScreensNeverActivated(t *testing.T) {
 		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // Detection -> Agents
 		{key: tea.KeyMsg{Type: tea.KeyEnter}, cursor: len(screens.AgentOptions()), setCursor: true}, // Agents Continue -> Persona
 		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // Persona (SDET) -> Preset
-		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // Preset (QE SDET) -> StrictTDD (pickers/SDDMode hidden)
-		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // StrictTDD (Enable) -> DependencyTree (CommunityTools/OpenCodePlugins hidden)
+		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // Preset (QE SDET) -> DependencyTree (pickers/SDDMode/StrictTDD/CommunityTools/OpenCodePlugins hidden)
 		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // DependencyTree Continue -> Review
 		{key: tea.KeyMsg{Type: tea.KeyEnter}},                                                       // Review Continue -> Installing
 	}
@@ -128,18 +128,19 @@ func TestQEInstallerFlow_SDDModeDefaultsToSingle(t *testing.T) {
 	m.Cursor = presetCursor(t, model.PresetQESDET)
 
 	state := applyFlowAction(t, m, flowAction{key: tea.KeyMsg{Type: tea.KeyEnter}})
-	if state.Screen != ScreenStrictTDD {
-		t.Fatalf("Screen = %v, want ScreenStrictTDD (SDDMode/model pickers hidden)", state.Screen)
+	if state.Screen != ScreenDependencyTree {
+		t.Fatalf("Screen = %v, want ScreenDependencyTree (SDDMode/model pickers/StrictTDD hidden)", state.Screen)
 	}
 	if state.Selection.SDDMode != model.SDDModeSingle {
 		t.Fatalf("Selection.SDDMode = %v, want %v to remain the documented default after navigating past the hidden SDDMode screen", state.Selection.SDDMode, model.SDDModeSingle)
 	}
 }
 
-// TestQEInstallerFlow_StrictTDDScreenIsReachable asserts ScreenStrictTDD is
-// NOT among the screens the QE build hides — driving Update() from
-// ScreenPreset with ComponentSDD selected must land on it.
-func TestQEInstallerFlow_StrictTDDScreenIsReachable(t *testing.T) {
+// TestQEInstallerFlow_StrictTDDScreenHidden asserts ScreenStrictTDD is hidden in
+// the QE build (default OFF): driving Update() from ScreenPreset with the QE
+// preset (ComponentSDD selected) skips StrictTDD straight to DependencyTree, and
+// Selection.StrictTDD stays false.
+func TestQEInstallerFlow_StrictTDDScreenHidden(t *testing.T) {
 	enableQESeam(t)
 
 	m := NewModel(system.DetectionResult{}, "dev")
@@ -148,11 +149,14 @@ func TestQEInstallerFlow_StrictTDDScreenIsReachable(t *testing.T) {
 
 	state := applyFlowAction(t, m, flowAction{key: tea.KeyMsg{Type: tea.KeyEnter}})
 
-	if state.Screen != ScreenStrictTDD {
-		t.Fatalf("Screen = %v, want ScreenStrictTDD to remain visible in the QE build", state.Screen)
+	if state.Screen == ScreenStrictTDD {
+		t.Fatalf("Screen = ScreenStrictTDD, want it hidden in the QE build (default OFF)")
 	}
-	if !qeScreenInSlice(state.pickerFlowSlice(), ScreenStrictTDD) {
-		t.Fatalf("pickerFlowSlice() = %v, missing ScreenStrictTDD", state.pickerFlowSlice())
+	if state.Screen != ScreenDependencyTree {
+		t.Fatalf("Screen = %v, want ScreenDependencyTree (StrictTDD hidden)", state.Screen)
+	}
+	if state.Selection.StrictTDD {
+		t.Fatalf("Selection.StrictTDD = true, want false (default OFF when the StrictTDD screen is hidden)")
 	}
 }
 
@@ -209,8 +213,8 @@ func TestQEInstallerFlow_WelcomeCollapsedQuitDispatchesQuit(t *testing.T) {
 // the exact selection upstream's TestInstallNavigationRoundTrips
 // ("all picker agents SDD single round-trips through every picker") drives
 // through Claude -> Kiro -> Codex -> SDDMode -> StrictTDD. With the QE seam
-// ON, the picker chain collapses to Preset -> StrictTDD -> DependencyTree.
-// Esc must walk back through the exact reverse of the forward sequence,
+// ON (StrictTDD now also hidden), the picker chain collapses all the way to
+// Preset -> DependencyTree in a single step. Esc must walk back to Preset,
 // never landing on a hidden screen.
 func TestQEInstallerFlow_ReverseNavigationMirrorsForwardAndAvoidsHiddenScreens(t *testing.T) {
 	enableQESeam(t)
@@ -226,11 +230,10 @@ func TestQEInstallerFlow_ReverseNavigationMirrorsForwardAndAvoidsHiddenScreens(t
 	m.Cursor = presetCursor(t, model.PresetQESDET)
 
 	forwardActions := []flowAction{
-		{key: tea.KeyMsg{Type: tea.KeyEnter}}, // Preset -> StrictTDD (Claude/Kiro/Codex/SDDMode hidden)
-		{key: tea.KeyMsg{Type: tea.KeyEnter}}, // StrictTDD (Enable) -> DependencyTree (CommunityTools/OpenCodePlugins hidden)
+		{key: tea.KeyMsg{Type: tea.KeyEnter}}, // Preset -> DependencyTree (Claude/Kiro/Codex/SDDMode/StrictTDD/CommunityTools/OpenCodePlugins all hidden)
 	}
-	forwardScreens := []Screen{ScreenStrictTDD, ScreenDependencyTree}
-	reverseScreens := []Screen{ScreenStrictTDD, ScreenPreset}
+	forwardScreens := []Screen{ScreenDependencyTree}
+	reverseScreens := []Screen{ScreenPreset}
 
 	state := m
 	for idx, action := range forwardActions {
