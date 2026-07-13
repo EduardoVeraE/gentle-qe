@@ -25,7 +25,7 @@ func qeFilterPresetOptions(_ []model.PresetID) []model.PresetID {
 // upstream preset tests pass unedited.
 func qePresetOptionsForBuild(opts []model.PresetID) []model.PresetID {
 	if !model.QEInstallerFlow {
-		return append(opts,
+		return insertBeforeCustomPreset(opts,
 			model.PresetQESDET,
 			model.PresetQEFront,
 			model.PresetQEAPI,
@@ -33,6 +33,31 @@ func qePresetOptionsForBuild(opts []model.PresetID) []model.PresetID {
 		)
 	}
 	return qeFilterPresetOptions(opts)
+}
+
+// insertBeforeCustomPreset inserts qePresets into opts immediately before
+// model.PresetCustom rather than at the tail. PresetCustom is the manual
+// "choose every component yourself" escape hatch and upstream tests (and
+// upstream's own PresetOptions() callers) reasonably treat it as the LAST
+// selectable preset — a plain append would push it into the middle of the
+// list once QE presets are added, breaking that invariant. If Custom is not
+// present in opts, qePresets are appended at the end as before.
+func insertBeforeCustomPreset(opts []model.PresetID, qePresets ...model.PresetID) []model.PresetID {
+	idx := -1
+	for i, p := range opts {
+		if p == model.PresetCustom {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return append(append([]model.PresetID{}, opts...), qePresets...)
+	}
+	result := make([]model.PresetID, 0, len(opts)+len(qePresets))
+	result = append(result, opts[:idx]...)
+	result = append(result, qePresets...)
+	result = append(result, opts[idx:]...)
+	return result
 }
 
 func init() {

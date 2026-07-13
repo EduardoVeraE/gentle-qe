@@ -13,13 +13,13 @@ func TestOrchestratorsRequireNonSkippableGeneralDelegationTriggers(t *testing.T)
 		"opencode/sdd-orchestrator.md",
 		"codex/sdd-orchestrator.md",
 	}
-	required := []string{
+	requiredControls := []string{
 		"Mandatory Delegation Triggers",
 		"non-skippable hard gates",
-		"TOTALMENTE obligatorio",
+		"fully mandatory",
 		"4-file rule",
 		"Multi-file write rule",
-		"PR rule",
+		"Lifecycle receipt rule",
 		"Incident rule",
 		"Long-session rule",
 		"Fresh review rule",
@@ -29,10 +29,54 @@ func TestOrchestratorsRequireNonSkippableGeneralDelegationTriggers(t *testing.T)
 	}
 	for _, path := range paths {
 		content := MustRead(path)
-		for _, want := range required {
+		for _, want := range requiredControls {
 			if !strings.Contains(content, want) {
 				t.Fatalf("%s missing non-skippable delegation guard %q", path, want)
 			}
+		}
+
+		triggerSection := firstMarkdownSection(content,
+			"### Mandatory Delegation Triggers",
+			"#### Mandatory Delegation Triggers",
+		)
+		if triggerSection == "" {
+			t.Fatalf("%s missing Mandatory Delegation Triggers section", path)
+		}
+
+		lifecycleLine := markdownLineContaining(triggerSection, "**Lifecycle receipt rule**")
+		if !lineContainsAll(
+			"before commit",
+			"stage every reviewed path",
+			"without changing content or mode",
+			"gentle-ai review validate --gate pre-commit --cwd <repo>",
+			"before push, PR, or release",
+			"content-bound receipt",
+			"gentle-ai review validate --gate <gate> --cwd <repo>",
+			"facade discover authority and artifacts",
+			"launch a lens",
+			"Judgment Day",
+			"new budget at the gate",
+		)(lifecycleLine) {
+			t.Fatalf("%s lifecycle gate must validate the existing receipt without launching a lens, Judgment Day, or a new budget: %q", path, lifecycleLine)
+		}
+
+		incidentLine := markdownLineContaining(triggerSection, "**Incident rule**")
+		if !lineContainsAll(
+			"remain immutable",
+			"validate the existing receipt",
+			"explicit scope action",
+			"not reopened review",
+		)(incidentLine) {
+			t.Fatalf("%s incident gate must prove immutable targets and validate the existing receipt: %q", path, incidentLine)
+		}
+
+		freshReviewLine := markdownLineContaining(triggerSection, "**Fresh review rule**")
+		if !lineContainsAll(
+			"fresh adversarial lenses",
+			"only inside one explicit",
+			"`review/start(target)`",
+		)(freshReviewLine) {
+			t.Fatalf("%s fresh review rule must bind adversarial review to one explicit review/start target: %q", path, freshReviewLine)
 		}
 	}
 }
@@ -124,8 +168,11 @@ func normalizedWords(s string) string {
 // at test time rather than at runtime.
 func TestAllEmbeddedAssetsAreReadable(t *testing.T) {
 	expectedFiles := []string{
+		// Canonical Engram protocol asset (full/slim/passive-capture/compact
+		// marker sections — see design.md Decision 3).
+		"engram/protocol.md",
+
 		// Claude agent files
-		"claude/engram-protocol.md",
 		"claude/output-style-neutral.md",
 		"claude/persona-gentleman.md",
 		"claude/sdd-orchestrator.md",
@@ -145,6 +192,7 @@ func TestAllEmbeddedAssetsAreReadable(t *testing.T) {
 		"claude/agents/review-readability.md",
 		"claude/agents/review-reliability.md",
 		"claude/agents/review-resilience.md",
+		"claude/agents/review-refuter.md",
 
 		// OpenCode agent files
 		"opencode/persona-gentleman.md",
@@ -186,12 +234,14 @@ func TestAllEmbeddedAssetsAreReadable(t *testing.T) {
 		"cursor/agents/review-readability.md",
 		"cursor/agents/review-reliability.md",
 		"cursor/agents/review-resilience.md",
+		"cursor/agents/review-refuter.md",
 
 		// Kiro agent files
 		"kiro/agents/review-risk.md",
 		"kiro/agents/review-readability.md",
 		"kiro/agents/review-reliability.md",
 		"kiro/agents/review-resilience.md",
+		"kiro/agents/review-refuter.md",
 
 		// Kimi agent files
 		"kimi/persona-gentleman.md",
@@ -224,10 +274,12 @@ func TestAllEmbeddedAssetsAreReadable(t *testing.T) {
 		"kimi/agents/review-readability.yaml",
 		"kimi/agents/review-reliability.yaml",
 		"kimi/agents/review-resilience.yaml",
+		"kimi/agents/review-refuter.yaml",
 		"kimi/agents/review-risk.md",
 		"kimi/agents/review-readability.md",
 		"kimi/agents/review-reliability.md",
 		"kimi/agents/review-resilience.md",
+		"kimi/agents/review-refuter.md",
 
 		// SDD skills
 		"skills/sdd-init/SKILL.md",
@@ -280,6 +332,31 @@ func TestAllEmbeddedAssetsAreReadable(t *testing.T) {
 				t.Fatalf("Read(%q) content is suspiciously short (%d bytes) — possible stub", path, len(content))
 			}
 		})
+	}
+}
+
+func TestSDDVerifyAuthorityPreflightDenialEnvelopeContract(t *testing.T) {
+	const denialFields = `authority_only_failure: true
+missing_review_authority: true
+substantive_failure: false
+command_failed: false
+observed_authority_revision: sha256:{observed-authority-revision}`
+
+	for _, path := range []string{
+		"skills/sdd-verify/SKILL.md",
+		"skills/sdd-verify/references/report-format.md",
+	} {
+		content := MustRead(path)
+		for _, want := range []string{
+			denialFields,
+			"test_exit_code: 125",
+			"build_exit_code: 125",
+			"must not be executed",
+		} {
+			if !strings.Contains(content, want) {
+				t.Fatalf("%s missing authority-preflight denial contract %q", path, want)
+			}
+		}
 	}
 }
 
@@ -456,10 +533,15 @@ func TestClaudeEmbeddedAssetLayout(t *testing.T) {
 		seen[entry.Name()] = true
 	}
 
-	for _, name := range []string{"agents", "commands", "engram-protocol.md", "persona-gentleman.md", "sdd-orchestrator.md"} {
+	for _, name := range []string{"agents", "commands", "persona-gentleman.md", "sdd-orchestrator.md"} {
 		if !seen[name] {
 			t.Fatalf("claude embedded assets missing %q", name)
 		}
+	}
+	// engram-protocol.md moved to the canonical engram/protocol.md asset
+	// (design.md Decision 3) — it MUST NOT ship a stale duplicate under claude/.
+	if seen["engram-protocol.md"] {
+		t.Fatal("claude embedded assets must not ship a stale engram-protocol.md — content now lives in engram/protocol.md")
 	}
 
 	commandEntries, err := FS.ReadDir("claude/commands")
@@ -474,9 +556,28 @@ func TestClaudeEmbeddedAssetLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir(claude/agents) error = %v", err)
 	}
-	// 17 upstream agents + 2 Gentle-QE QA agents (qa-orchestrator, playwright-test-generator).
-	if len(agentEntries) != 19 {
-		t.Fatalf("claude agents count = %d, want 19", len(agentEntries))
+	// 18 upstream agents (incl. review-refuter) + 2 Gentle-QE QA agents
+	// (qa-orchestrator, playwright-test-generator).
+	if len(agentEntries) != 20 {
+		t.Fatalf("claude agents count = %d, want 20", len(agentEntries))
+	}
+}
+
+// TestEngramEmbeddedAssetLayout verifies the canonical protocol asset
+// directory introduced by the consolidation (design.md Decision 3).
+func TestEngramEmbeddedAssetLayout(t *testing.T) {
+	entries, err := FS.ReadDir("engram")
+	if err != nil {
+		t.Fatalf("ReadDir(engram) error = %v", err)
+	}
+
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		seen[entry.Name()] = true
+	}
+
+	if !seen["protocol.md"] {
+		t.Fatal("engram embedded assets missing \"protocol.md\"")
 	}
 }
 
@@ -799,17 +900,33 @@ func TestPlatformNativeSDDOrchestratorsAvoidOpenCodePersistenceClaims(t *testing
 }
 
 func TestGentlemanLanguageInstructionsDoNotBiasEnglishSessions(t *testing.T) {
-	personaPaths := []string{
-		"claude/persona-gentleman.md",
-		"generic/persona-gentleman.md",
-		"kiro/persona-gentleman.md",
-		"kimi/persona-gentleman.md",
-		"opencode/persona-gentleman.md",
+	// Claude and Kimi have an active output-style channel — their persona
+	// section is a residual and no longer carries language content on its
+	// own; the guardrail contract must be evaluated over the COMBINED
+	// persona-residual + output-style channel (design.md Decision 1;
+	// spec.md "Generic Neutral Asset Parity" applies the same combined-channel
+	// principle to Gentleman here).
+	personaPaths := []struct {
+		path           string
+		combineWith    string // "" when the persona file alone still carries language content
+		languagePhrase string // exact per-path phrase asserting the "match current language" guardrail
+	}{
+		// Claude/Kimi no longer carry "REPLY ONLY" in the persona residual —
+		// their combined channel exposes the output style's own Language
+		// Rules opener instead (JD-019).
+		{path: "claude/persona-gentleman.md", combineWith: "claude/output-style-gentleman.md", languagePhrase: "Always match the user's current language in your reply."},
+		{path: "generic/persona-gentleman.md", languagePhrase: "Match the user's current language in your REPLY ONLY"},
+		{path: "kiro/persona-gentleman.md", languagePhrase: "Match the user's current language in your REPLY ONLY"},
+		{path: "kimi/persona-gentleman.md", combineWith: "kimi/output-style-gentleman.md", languagePhrase: "Always match the user's current language in your reply."},
+		{path: "opencode/persona-gentleman.md", languagePhrase: "Match the user's current language in your REPLY ONLY"},
 	}
 
-	for _, path := range personaPaths {
-		t.Run(path, func(t *testing.T) {
-			content := MustRead(path)
+	for _, tc := range personaPaths {
+		t.Run(tc.path, func(t *testing.T) {
+			content := MustRead(tc.path)
+			if tc.combineWith != "" {
+				content += "\n" + MustRead(tc.combineWith)
+			}
 
 			for _, banned := range []string{
 				`Say "déjame verificar"`,
@@ -817,17 +934,17 @@ func TestGentlemanLanguageInstructionsDoNotBiasEnglishSessions(t *testing.T) {
 				`English input → same warm energy:`,
 			} {
 				if strings.Contains(content, banned) {
-					t.Fatalf("%s still contains language-biasing phrase %q", path, banned)
+					t.Fatalf("%s (combined=%q) still contains language-biasing phrase %q", tc.path, tc.combineWith, banned)
 				}
 			}
 
 			for _, required := range []string{
-				"Match the user's current language in your REPLY ONLY",
+				tc.languagePhrase,
 				"Do not switch languages unless the user does, asks you to, or you are quoting/translating content.",
-				"When replying to the user in English, keep the full reply in natural English with the same warm energy.",
+				"keep the full reply in natural English with the same warm energy",
 			} {
 				if !strings.Contains(content, required) {
-					t.Fatalf("%s missing language guardrail %q", path, required)
+					t.Fatalf("%s (combined=%q) missing language guardrail %q", tc.path, tc.combineWith, required)
 				}
 			}
 		})
@@ -853,7 +970,8 @@ func TestGentlemanLanguageInstructionsDoNotBiasEnglishSessions(t *testing.T) {
 			for _, required := range []string{
 				"Always match the user's current language",
 				"Do not drift into another language because of persona wording, examples, or stylistic momentum.",
-				"keep the full response in English unless the user explicitly asks for another language or you are translating/quoting",
+				// Decision 4/JD-013: merged bullet replaces the old verbatim wording.
+				"keep the full reply in natural English with the same warm energy",
 			} {
 				if !strings.Contains(content, required) {
 					t.Fatalf("%s missing output-style guardrail %q", path, required)
@@ -862,12 +980,13 @@ func TestGentlemanLanguageInstructionsDoNotBiasEnglishSessions(t *testing.T) {
 		})
 	}
 
-	// engram-protocol assets must not ship Spanish trigger examples that bias
-	// English sessions into Spanish replies (same mechanism as #341 / #350).
-	// Covers all agent families that ship a dedicated engram instruction asset.
+	// The canonical engram protocol asset must not ship Spanish trigger
+	// examples that bias English sessions into Spanish replies (same
+	// mechanism as #341 / #350). Since design.md Decision 3 consolidated the
+	// former claude/engram-protocol.md and codex/engram-instructions.md into
+	// one canonical source, a single check now covers both surfaces.
 	for _, path := range []string{
-		"claude/engram-protocol.md",
-		"codex/engram-instructions.md",
+		"engram/protocol.md",
 	} {
 		t.Run(path, func(t *testing.T) {
 			content := MustRead(path)
@@ -886,8 +1005,7 @@ func TestGentlemanLanguageInstructionsDoNotBiasEnglishSessions(t *testing.T) {
 	}
 
 	for _, path := range []string{
-		"claude/engram-protocol.md",
-		"codex/engram-instructions.md",
+		"engram/protocol.md",
 		"skills/_shared/engram-convention.md",
 	} {
 		t.Run(path+"/lifecycle", func(t *testing.T) {
@@ -970,7 +1088,10 @@ func TestClaudeManagedOutputStylesAnchorReplyLanguageToLatestUserRequest(t *test
 }
 
 func TestClaudeGentlemanPersonaPreventsEnglishGreetingCodeSwitching(t *testing.T) {
-	content := MustRead("claude/persona-gentleman.md")
+	// Claude's persona section is a residual (Decision 1) — the code-switching
+	// guardrail contract now lives in the output style; evaluate the combined
+	// channel, not the persona file in isolation.
+	content := MustRead("claude/persona-gentleman.md") + "\n" + MustRead("claude/output-style-gentleman.md")
 
 	for _, required := range []string{
 		"If the selected reply language is English, every part of the direct reply must be English: greetings, interjections, acknowledgements, transition phrases, and the first sentence.",
@@ -1362,8 +1483,8 @@ func TestClaudeCommandsDetectWorkspaceAgentSide(t *testing.T) {
 }
 
 // TestOrchestratorsRequireAutomaticGatekeeper asserts that every orchestrator
-// template carries the Automatic Mode Gatekeeper anchor phrases, so the
-// per-phase validation contract cannot silently drift out of any one template.
+// template validates every phase boundary and keeps design/apply validation
+// artifact-bound rather than silently opening an adversarial code review.
 func TestOrchestratorsRequireAutomaticGatekeeper(t *testing.T) {
 	paths := []string{
 		"antigravity/sdd-orchestrator.md",
@@ -1383,7 +1504,7 @@ func TestOrchestratorsRequireAutomaticGatekeeper(t *testing.T) {
 		"Automatic Mode Gatekeeper",
 		"The gatekeeper runs after every phase",
 		"Inline for low-risk phases",
-		"Fresh-context reviewer for high-risk phases",
+		"Fresh-context phase-contract validator",
 		"re-run the same phase exactly once",
 		"STOP the automatic chain",
 	}
@@ -1397,15 +1518,31 @@ func TestOrchestratorsRequireAutomaticGatekeeper(t *testing.T) {
 				t.Fatalf("%s missing Automatic Mode Gatekeeper anchor %q", path, anchor)
 			}
 		}
+
+		validatorLine := markdownLineContaining(content, "Fresh-context phase-contract validator")
+		if !lineContainsAll(
+			"sdd-design",
+			"sdd-apply",
+			"phase artifact against its inputs",
+			"not adversarial implementation review",
+			"code diff",
+			"creates no 4R/Judgment-Day",
+			"budget",
+		)(validatorLine) {
+			t.Fatalf("%s fresh-context phase-contract validator must validate design/apply artifacts against inputs without code-diff review or a 4R/Judgment-Day budget: %q", path, validatorLine)
+		}
+		if !lineContainsAny("does not inspect the code diff", "inspects no code diff")(validatorLine) {
+			t.Fatalf("%s fresh-context phase-contract validator must prohibit code-diff inspection: %q", path, validatorLine)
+		}
 	}
 }
 
 func TestSDDOrchestratorsRouteFreshReviewsToConcreteReviewLenses(t *testing.T) {
-	t.Run("rejects section-only weak routing fixture", func(t *testing.T) {
+	t.Run("rejects lifecycle gates that reopen review", func(t *testing.T) {
 		weakContent := `### Mandatory Delegation Triggers (Non-Skippable)
-3. **PR rule**: before commit, push, or PR after code changes, run verification unless the diff is trivial docs/text.
-4. **Incident rule**: after wrong cwd or merge recovery, stop and run a fresh audit before continuing.
-6. **Fresh review rule**: use fresh context for adversarial review of diffs, conflicts, PR readiness, and incidents.
+3. **Lifecycle receipt rule**: before commit, push, PR, or release, launch a fresh review through Review Lens Selection.
+4. **Incident rule**: after wrong cwd or merge recovery, run Review Lens Selection before continuing.
+6. **Fresh review rule**: use fresh context for adversarial review of diffs.
 
 #### Review Lens Selection
 - review-risk
@@ -1414,8 +1551,8 @@ func TestSDDOrchestratorsRouteFreshReviewsToConcreteReviewLenses(t *testing.T) {
 - review-reliability
 - If multiple rows match, run the narrow set that covers the risk.
 `
-		if problems := concreteReviewLensRoutingProblems(weakContent); len(problems) == 0 {
-			t.Fatal("section-only fixture should fail because trigger rules do not route to concrete review lenses")
+		if problems := boundedReviewRoutingProblems(weakContent); len(problems) == 0 {
+			t.Fatal("fixture should fail because lifecycle and incident gates reopen review and fresh review lacks an explicit review/start target")
 		}
 	})
 
@@ -1433,13 +1570,12 @@ func TestSDDOrchestratorsRouteFreshReviewsToConcreteReviewLenses(t *testing.T) {
 		"qwen/sdd-orchestrator.md",
 		"windsurf/sdd-orchestrator.md",
 	}
-	required := []string{
+	requiredLenses := []string{
 		"Review Lens Selection",
 		"review-risk",
 		"review-resilience",
 		"review-readability",
 		"review-reliability",
-		"If multiple rows match, run the narrow set that covers the risk",
 	}
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
@@ -1448,19 +1584,54 @@ func TestSDDOrchestratorsRouteFreshReviewsToConcreteReviewLenses(t *testing.T) {
 			if section == "" {
 				t.Fatalf("%s missing Review Lens Selection section", path)
 			}
-			for _, want := range required {
+			for _, want := range requiredLenses {
 				if !strings.Contains(section, want) {
 					t.Fatalf("%s Review Lens Selection section missing %q", path, want)
 				}
 			}
-			if problems := concreteReviewLensRoutingProblems(content); len(problems) > 0 {
-				t.Fatalf("%s fresh-review guidance does not route to concrete review lenses: %s", path, strings.Join(problems, "; "))
+
+			tierChecks := []struct {
+				label    string
+				matcher  func(string) bool
+				contract string
+			}{
+				{
+					label:    "**Trivial diff**",
+					matcher:  lineContainsAll("run no lens"),
+					contract: "must route to zero lenses",
+				},
+				{
+					label:    "**Standard diff**",
+					matcher:  lineContainsAll("run exactly ONE lens"),
+					contract: "must route to exactly one concrete lens",
+				},
+				{
+					label: "**Hot path**",
+					matcher: lineContainsAll(
+						"run the full 4R set",
+						"`review-risk`",
+						"`review-resilience`",
+						"`review-readability`",
+						"`review-reliability`",
+					),
+					contract: "must route to all four concrete lenses",
+				},
+			}
+			for _, check := range tierChecks {
+				line := markdownLineContaining(section, check.label)
+				if !check.matcher(line) {
+					t.Fatalf("%s Review Lens Selection %s: %q", path, check.contract, line)
+				}
+			}
+
+			if problems := boundedReviewRoutingProblems(content); len(problems) > 0 {
+				t.Fatalf("%s bounded review guidance violates receipt or explicit review-start routing: %s", path, strings.Join(problems, "; "))
 			}
 		})
 	}
 }
 
-func concreteReviewLensRoutingProblems(content string) []string {
+func boundedReviewRoutingProblems(content string) []string {
 	triggerSection := firstMarkdownSection(content,
 		"### Mandatory Delegation Triggers",
 		"#### Mandatory Phase-Boundary Triggers",
@@ -1475,19 +1646,31 @@ func concreteReviewLensRoutingProblems(content string) []string {
 		contract string
 	}{
 		{
-			label:    "PR rule",
-			matcher:  lineContainsAll("concrete", "Review Lens Selection"),
-			contract: "must select concrete lens(es) through Review Lens Selection",
+			label: "Lifecycle receipt rule",
+			matcher: lineContainsAll(
+				"before commit",
+				"before push, PR, or release",
+				"content-bound receipt",
+				"gentle-ai review validate --gate pre-commit --cwd <repo>",
+				"gentle-ai review validate --gate <gate> --cwd <repo>",
+				"facade discover authority and artifacts",
+				"never launch a lens",
+				"Judgment Day",
+				"new budget at the gate",
+				"stage every reviewed path",
+				"without changing content or mode",
+			),
+			contract: "must validate the content-bound receipt without launching a lens, Judgment Day, or a new budget",
 		},
 		{
 			label:    "Incident rule",
-			matcher:  lineContainsAll("concrete", "Review Lens Selection"),
-			contract: "must route fresh incident audit/review through Review Lens Selection",
+			matcher:  lineContainsAll("remain immutable", "validate the existing receipt", "explicit scope action", "not reopened review"),
+			contract: "must prove target immutability and validate the existing receipt without reopening review",
 		},
 		{
 			label:    "Fresh review rule",
-			matcher:  lineContainsAny("selected concrete review lens", "fresh concrete review lens", "fresh-context review lens"),
-			contract: "must require a selected fresh concrete review lens",
+			matcher:  lineContainsAll("fresh adversarial lenses", "only inside one explicit", "`review/start(target)`"),
+			contract: "must start fresh adversarial lenses only through an explicit review/start target",
 		},
 	}
 
@@ -1501,6 +1684,9 @@ func concreteReviewLensRoutingProblems(content string) []string {
 		if !check.matcher(line) {
 			problems = append(problems, check.label+": "+check.contract)
 		}
+	}
+	if starts := strings.Count(triggerSection, "`review/start(target)`"); starts != 1 {
+		problems = append(problems, "Fresh review rule: expected exactly one explicit review/start target in trigger rules")
 	}
 	return problems
 }

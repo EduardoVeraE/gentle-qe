@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -20,6 +21,7 @@ func TestCodexEffortValid(t *testing.T) {
 		{"empty", model.CodexEffort(""), false},
 		{"junk", model.CodexEffort("junk"), false},
 		{"uppercase", model.CodexEffort("HIGH"), false},
+		{"max deferred", model.CodexEffort("max"), false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -96,8 +98,8 @@ func TestRenderCodexPhaseEfforts_LowCostTierValues(t *testing.T) {
 
 func TestRenderCodexPhaseEfforts_PowerfulTierValues(t *testing.T) {
 	out := model.RenderCodexPhaseEfforts(model.CodexModelPresetPowerful(), nil)
-	// Powerful: sdd-strong=xhigh, sdd-mid=high, sdd-cheap=low
-	checkCarrilRow(t, out, "sdd-strong", model.CodexEffortXHigh)
+	// Powerful: sdd-strong=high, sdd-mid=high, sdd-cheap=low
+	checkCarrilRow(t, out, "sdd-strong", model.CodexEffortHigh)
 	checkCarrilRow(t, out, "sdd-mid", model.CodexEffortHigh)
 	checkCarrilRow(t, out, "sdd-cheap", model.CodexEffortLow)
 }
@@ -117,23 +119,23 @@ func TestRenderCodexPhaseEfforts_CorrectCarrilEfforts(t *testing.T) {
 		wantCheap  model.CodexEffort
 	}{
 		{
-			name:       "LowCost/Plus$20",
+			name:       "LowCost",
 			preset:     model.CodexModelPresetLowCost(),
 			wantStrong: model.CodexEffortMedium,
 			wantMid:    model.CodexEffortMedium,
 			wantCheap:  model.CodexEffortLow,
 		},
 		{
-			name:       "Recommended/Pro$100",
+			name:       "Recommended",
 			preset:     model.CodexModelPresetRecommended(),
-			wantStrong: model.CodexEffortHigh,
+			wantStrong: model.CodexEffortMedium,
 			wantMid:    model.CodexEffortMedium,
 			wantCheap:  model.CodexEffortLow,
 		},
 		{
-			name:       "Powerful/Pro$200",
+			name:       "Powerful",
 			preset:     model.CodexModelPresetPowerful(),
-			wantStrong: model.CodexEffortXHigh,
+			wantStrong: model.CodexEffortHigh,
 			wantMid:    model.CodexEffortHigh,
 			wantCheap:  model.CodexEffortLow,
 		},
@@ -214,85 +216,152 @@ func TestCodexTierGroups_AllPhasesAssigned(t *testing.T) {
 
 func TestDefaultCarrilModels(t *testing.T) {
 	m := model.DefaultCarrilModels()
-	if m["sdd-strong"] != "gpt-5.5" {
-		t.Errorf("sdd-strong = %q, want gpt-5.5", m["sdd-strong"])
+	if m["sdd-strong"] != "gpt-5.6-sol" {
+		t.Errorf("sdd-strong = %q, want gpt-5.6-sol", m["sdd-strong"])
 	}
-	if m["sdd-mid"] != "gpt-5.5" {
-		t.Errorf("sdd-mid = %q, want gpt-5.5", m["sdd-mid"])
+	if m["sdd-mid"] != "gpt-5.6-terra" {
+		t.Errorf("sdd-mid = %q, want gpt-5.6-terra", m["sdd-mid"])
 	}
-	if m["sdd-cheap"] != "gpt-5.4-mini" {
-		t.Errorf("sdd-cheap = %q, want gpt-5.4-mini", m["sdd-cheap"])
+	if m["sdd-cheap"] != "gpt-5.6-luna" {
+		t.Errorf("sdd-cheap = %q, want gpt-5.6-luna", m["sdd-cheap"])
 	}
 	if len(m) != 3 {
 		t.Errorf("DefaultCarrilModels() has %d entries, want 3", len(m))
 	}
 }
 
-func TestPresetPlus_ModelEffortPerCarril(t *testing.T) {
+func TestMigrateLegacyCodexCarrilDefaults(t *testing.T) {
+	legacy := map[string]string{
+		"sdd-strong": "gpt-5.5",
+		"sdd-mid":    "gpt-5.5",
+		"sdd-cheap":  "gpt-5.4-mini",
+	}
+	tests := []struct {
+		name  string
+		input map[string]string
+		want  map[string]string
+	}{
+		{name: "exact legacy tuple", input: legacy, want: model.DefaultCarrilModels()},
+		{name: "different value", input: map[string]string{"sdd-cheap": "gpt-5.4", "sdd-mid": "gpt-5.5", "sdd-strong": "gpt-5.5"}, want: map[string]string{"sdd-cheap": "gpt-5.4", "sdd-mid": "gpt-5.5", "sdd-strong": "gpt-5.5"}},
+		{name: "partial map", input: map[string]string{"sdd-strong": "gpt-5.5", "sdd-mid": "gpt-5.5"}, want: map[string]string{"sdd-strong": "gpt-5.5", "sdd-mid": "gpt-5.5"}},
+		{name: "extra key", input: map[string]string{"sdd-strong": "gpt-5.5", "sdd-mid": "gpt-5.5", "sdd-cheap": "gpt-5.4-mini", "custom": "gpt-5.6-sol"}, want: map[string]string{"sdd-strong": "gpt-5.5", "sdd-mid": "gpt-5.5", "sdd-cheap": "gpt-5.4-mini", "custom": "gpt-5.6-sol"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := model.MigrateLegacyCodexCarrilDefaults(tt.input)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("MigrateLegacyCodexCarrilDefaults() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPresetLowCost_ModelEffortPerCarril(t *testing.T) {
 	m := model.CodexModelPresetLowCost()
-	// Plus $20: Razonamiento=gpt-5.5/medium, Código=gpt-5.5/medium, Liviano=gpt-5.4-mini/low
+	// Low-cost: Razonamiento=gpt-5.6-terra/medium, Código=gpt-5.6-terra/medium, Liviano=gpt-5.6-luna/low
 	// Check that propose/design (Razonamiento/sdd-strong) is medium
 	if m["sdd-propose"] != model.CodexEffortMedium {
-		t.Errorf("Plus preset sdd-propose = %q, want medium", m["sdd-propose"])
+		t.Errorf("Low-cost preset sdd-propose = %q, want medium", m["sdd-propose"])
 	}
 	// apply (Código/sdd-mid) is medium
 	if m["sdd-apply"] != model.CodexEffortMedium {
-		t.Errorf("Plus preset sdd-apply = %q, want medium", m["sdd-apply"])
+		t.Errorf("Low-cost preset sdd-apply = %q, want medium", m["sdd-apply"])
 	}
 	// explore (Liviano/sdd-cheap) is low
 	if m["sdd-explore"] != model.CodexEffortLow {
-		t.Errorf("Plus preset sdd-explore = %q, want low", m["sdd-explore"])
+		t.Errorf("Low-cost preset sdd-explore = %q, want low", m["sdd-explore"])
 	}
 
-	// Verify Plus preset carril models
-	carrilModels := model.DefaultCarrilModels()
-	if carrilModels["sdd-strong"] != "gpt-5.5" {
-		t.Errorf("Plus preset sdd-strong model = %q, want gpt-5.5", carrilModels["sdd-strong"])
+	// Verify Low-cost preset carril models
+	carrilModels := model.CodexCarrilModelsForPreset(string(model.CodexPresetLowCost))
+	if carrilModels["sdd-strong"] != "gpt-5.6-terra" {
+		t.Errorf("Low-cost preset sdd-strong model = %q, want gpt-5.6-terra", carrilModels["sdd-strong"])
 	}
-	if carrilModels["sdd-mid"] != "gpt-5.5" {
-		t.Errorf("Plus preset sdd-mid model = %q, want gpt-5.5", carrilModels["sdd-mid"])
+	if carrilModels["sdd-mid"] != "gpt-5.6-terra" {
+		t.Errorf("Low-cost preset sdd-mid model = %q, want gpt-5.6-terra", carrilModels["sdd-mid"])
 	}
-	if carrilModels["sdd-cheap"] != "gpt-5.4-mini" {
-		t.Errorf("Plus preset sdd-cheap model = %q, want gpt-5.4-mini", carrilModels["sdd-cheap"])
+	if carrilModels["sdd-cheap"] != "gpt-5.6-luna" {
+		t.Errorf("Low-cost preset sdd-cheap model = %q, want gpt-5.6-luna", carrilModels["sdd-cheap"])
 	}
 }
 
-func TestPresetPro100_ModelEffortPerCarril(t *testing.T) {
-	// Pro $100: Razonamiento=gpt-5.5/high, Código=gpt-5.5/medium, Liviano=gpt-5.4-mini/low
+func TestPresetRecommended_ModelEffortPerCarril(t *testing.T) {
+	// Recommended: Razonamiento=gpt-5.6-sol/medium, Código=gpt-5.6-terra/medium, Liviano=gpt-5.6-luna/low
 	m := model.CodexModelPresetRecommended()
-	if m["sdd-propose"] != model.CodexEffortHigh {
-		t.Errorf("Pro100 preset sdd-propose = %q, want high", m["sdd-propose"])
+	if m["sdd-propose"] != model.CodexEffortMedium {
+		t.Errorf("Recommended preset sdd-propose = %q, want medium", m["sdd-propose"])
 	}
-	// sdd-apply belongs to Código (sdd-mid): must be medium in Pro $100, not high.
+	// sdd-apply belongs to Código (sdd-mid): must be medium in the balanced workload policy, not high.
 	if m["sdd-apply"] != model.CodexEffortMedium {
-		t.Errorf("Pro100 preset sdd-apply = %q, want medium (Código carril)", m["sdd-apply"])
+		t.Errorf("Recommended preset sdd-apply = %q, want medium (Código carril)", m["sdd-apply"])
 	}
 
-	carrilModels := model.DefaultCarrilModels()
-	if carrilModels["sdd-strong"] != "gpt-5.5" {
-		t.Errorf("Pro100 preset sdd-strong model = %q, want gpt-5.5", carrilModels["sdd-strong"])
+	carrilModels := model.CodexCarrilModelsForPreset(string(model.CodexPresetRecommended))
+	if carrilModels["sdd-strong"] != "gpt-5.6-sol" {
+		t.Errorf("Recommended preset sdd-strong model = %q, want gpt-5.6-sol", carrilModels["sdd-strong"])
 	}
-	if carrilModels["sdd-cheap"] != "gpt-5.4-mini" {
-		t.Errorf("Pro100 preset sdd-cheap model = %q, want gpt-5.4-mini", carrilModels["sdd-cheap"])
+	if carrilModels["sdd-mid"] != "gpt-5.6-terra" {
+		t.Errorf("Recommended preset sdd-mid model = %q, want gpt-5.6-terra", carrilModels["sdd-mid"])
+	}
+	if carrilModels["sdd-cheap"] != "gpt-5.6-luna" {
+		t.Errorf("Recommended preset sdd-cheap model = %q, want gpt-5.6-luna", carrilModels["sdd-cheap"])
 	}
 }
 
-func TestPresetPro200_ModelEffortPerCarril(t *testing.T) {
-	// Pro $200: Razonamiento=gpt-5.5/xhigh, Código=gpt-5.5/high, Liviano=gpt-5.4-mini/low
+func TestPresetPowerful_ModelEffortPerCarril(t *testing.T) {
+	// Powerful: Razonamiento=gpt-5.6-sol/high, Código=gpt-5.6-terra/high, Liviano=gpt-5.6-luna/low
 	m := model.CodexModelPresetPowerful()
-	if m["sdd-propose"] != model.CodexEffortXHigh {
-		t.Errorf("Pro200 preset sdd-propose = %q, want xhigh", m["sdd-propose"])
+	if m["sdd-propose"] != model.CodexEffortHigh {
+		t.Errorf("Powerful preset sdd-propose = %q, want high", m["sdd-propose"])
 	}
 	if m["sdd-apply"] != model.CodexEffortHigh {
-		t.Errorf("Pro200 preset sdd-apply = %q, want high", m["sdd-apply"])
+		t.Errorf("Powerful preset sdd-apply = %q, want high", m["sdd-apply"])
 	}
 
-	carrilModels := model.DefaultCarrilModels()
-	if carrilModels["sdd-strong"] != "gpt-5.5" {
-		t.Errorf("Pro200 preset sdd-strong model = %q, want gpt-5.5", carrilModels["sdd-strong"])
+	carrilModels := model.CodexCarrilModelsForPreset(string(model.CodexPresetPowerful))
+	if carrilModels["sdd-strong"] != "gpt-5.6-sol" {
+		t.Errorf("Powerful preset sdd-strong model = %q, want gpt-5.6-sol", carrilModels["sdd-strong"])
 	}
-	if carrilModels["sdd-cheap"] != "gpt-5.4-mini" {
-		t.Errorf("Pro200 preset sdd-cheap model = %q, want gpt-5.4-mini", carrilModels["sdd-cheap"])
+	if carrilModels["sdd-mid"] != "gpt-5.6-terra" {
+		t.Errorf("Powerful preset sdd-mid model = %q, want gpt-5.6-terra", carrilModels["sdd-mid"])
+	}
+	if carrilModels["sdd-cheap"] != "gpt-5.6-luna" {
+		t.Errorf("Powerful preset sdd-cheap model = %q, want gpt-5.6-luna", carrilModels["sdd-cheap"])
+	}
+}
+
+func TestCodexPresetCarrilDefaults_UnknownPresetFallsBackToRecommended(t *testing.T) {
+	got := model.CodexPresetCarrilDefaults("unknown-preset")
+	want := model.CodexPresetCarrilDefaults(string(model.CodexPresetRecommended))
+
+	for carril, wantDefault := range want {
+		if got[carril] != wantDefault {
+			t.Errorf("CodexPresetCarrilDefaults(unknown)[%q] = %+v, want recommended %+v", carril, got[carril], wantDefault)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("CodexPresetCarrilDefaults(unknown) len = %d, want %d", len(got), len(want))
+	}
+}
+
+func TestCodexPresetConstantsRemainStringCompatible(t *testing.T) {
+	tests := []struct {
+		name string
+		key  model.CodexPresetKey
+		want string
+	}{
+		{"low cost", model.CodexPresetLowCost, "low-cost"},
+		{"recommended", model.CodexPresetRecommended, "recommended"},
+		{"powerful", model.CodexPresetPowerful, "powerful"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if string(tc.key) != tc.want {
+				t.Errorf("string(%s) = %q, want %q", tc.name, tc.key, tc.want)
+			}
+		})
 	}
 }
 
@@ -304,21 +373,19 @@ func TestRenderCodexPhaseEfforts_ModelColumn(t *testing.T) {
 	if !strings.Contains(out, "Model") {
 		t.Errorf("RenderCodexPhaseEfforts: table header missing 'Model' column; got:\n%s", out)
 	}
-	// All rows should contain gpt-5.5 or gpt-5.4-mini.
-	if !strings.Contains(out, "gpt-5.5") {
-		t.Errorf("RenderCodexPhaseEfforts: expected gpt-5.5 in output; got:\n%s", out)
-	}
-	if !strings.Contains(out, "gpt-5.4-mini") {
-		t.Errorf("RenderCodexPhaseEfforts: expected gpt-5.4-mini in output; got:\n%s", out)
+	for _, want := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("RenderCodexPhaseEfforts: expected %s in output; got:\n%s", want, out)
+		}
 	}
 }
 
 func TestRenderCodexPhaseEfforts_NilCarrilModels(t *testing.T) {
 	assignments := model.CodexModelPresetRecommended()
 	out := model.RenderCodexPhaseEfforts(assignments, nil)
-	// nil carrilModels: defaults apply; sdd-cheap row must show gpt-5.4-mini
-	if !strings.Contains(out, "gpt-5.4-mini") {
-		t.Errorf("RenderCodexPhaseEfforts(nil): sdd-cheap should show gpt-5.4-mini; got:\n%s", out)
+	// nil carrilModels: defaults apply; sdd-cheap row must show gpt-5.6-luna
+	if !strings.Contains(out, "gpt-5.6-luna") {
+		t.Errorf("RenderCodexPhaseEfforts(nil): sdd-cheap should show gpt-5.6-luna; got:\n%s", out)
 	}
 }
 
@@ -332,7 +399,7 @@ func TestRenderCodexPhaseEfforts_NonDefaultModel(t *testing.T) {
 		"sdd-cheap":  "gpt-5.4-mini",
 	}
 	out := model.RenderCodexPhaseEfforts(assignments, carrilModels)
-	// The sdd-strong row must show the overridden model, not the default gpt-5.5.
+	// The sdd-strong row must show the overridden model, not the default GPT-5.6 model.
 	checkCarrilRowModel(t, out, "sdd-strong", "gpt-5.4")
 	// Other rows must still show their canonical models.
 	checkCarrilRowModel(t, out, "sdd-mid", "gpt-5.5")
@@ -343,7 +410,7 @@ func TestRenderCodexPhaseEfforts_NonDefaultModel(t *testing.T) {
 
 func TestCodexAvailableModels_Contents(t *testing.T) {
 	models := model.CodexAvailableModels()
-	want := []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2-codex", "gpt-5.3-codex"}
+	want := []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2-codex"}
 	if len(models) != len(want) {
 		t.Fatalf("CodexAvailableModels() len = %d, want %d", len(models), len(want))
 	}
@@ -374,6 +441,21 @@ func TestFilterCodexModels_Match(t *testing.T) {
 		wantAny  []string
 		wantNone []string
 	}{
+		{
+			query:    "sol",
+			wantAny:  []string{"gpt-5.6-sol"},
+			wantNone: []string{"gpt-5.6-terra", "gpt-5.6-luna"},
+		},
+		{
+			query:    "terra",
+			wantAny:  []string{"gpt-5.6-terra"},
+			wantNone: []string{"gpt-5.6-sol", "gpt-5.6-luna"},
+		},
+		{
+			query:    "luna",
+			wantAny:  []string{"gpt-5.6-luna"},
+			wantNone: []string{"gpt-5.6-sol", "gpt-5.6-terra"},
+		},
 		{
 			query:    "gpt-5.5",
 			wantAny:  []string{"gpt-5.5"},
@@ -433,7 +515,7 @@ func TestRenderCodexPhaseEffortsByPhase_AllPhasesPresent(t *testing.T) {
 		"sdd-apply":   "gpt-5.4",
 	}
 	efforts := model.CodexModelPresetRecommended()
-	out := model.RenderCodexPhaseEffortsByPhase(phaseModels, efforts)
+	out := model.RenderCodexPhaseEffortsByPhase(phaseModels, efforts, nil)
 
 	phases := []string{
 		"sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks",
@@ -455,7 +537,7 @@ func TestRenderCodexPhaseEffortsByPhase_CustomModelShown(t *testing.T) {
 		"sdd-propose": "gpt-5.4",
 	}
 	efforts := model.CodexModelPresetRecommended()
-	out := model.RenderCodexPhaseEffortsByPhase(phaseModels, efforts)
+	out := model.RenderCodexPhaseEffortsByPhase(phaseModels, efforts, nil)
 
 	// The sdd-propose row must contain exactly | `sdd-propose` | `gpt-5.4` |
 	// (not gpt-5.4-mini or any other model that happens to contain "gpt-5.4").
@@ -470,18 +552,42 @@ func TestRenderCodexPhaseEffortsByPhase_CustomModelShown(t *testing.T) {
 func TestRenderCodexPhaseEffortsByPhase_UnassignedUsesDefaultModel(t *testing.T) {
 	// No custom models — all phases should use carril defaults.
 	efforts := model.CodexModelPresetRecommended()
-	out := model.RenderCodexPhaseEffortsByPhase(nil, efforts)
+	out := model.RenderCodexPhaseEffortsByPhase(nil, efforts, nil)
 
-	// sdd-explore is in sdd-cheap carril → gpt-5.4-mini.
-	if !strings.Contains(out, "gpt-5.4-mini") {
-		t.Errorf("RenderCodexPhaseEffortsByPhase(nil models): sdd-cheap phases should show gpt-5.4-mini; output:\n%s", out)
+	// sdd-explore is in sdd-cheap carril → gpt-5.6-luna.
+	if !strings.Contains(out, "gpt-5.6-luna") {
+		t.Errorf("RenderCodexPhaseEffortsByPhase(nil models): sdd-cheap phases should show gpt-5.6-luna; output:\n%s", out)
+	}
+}
+
+func TestRenderCodexPhaseEffortsByPhase_UnassignedUsesProvidedCarrilModel(t *testing.T) {
+	out := model.RenderCodexPhaseEffortsByPhase(
+		map[string]string{"sdd-propose": "gpt-5.4"},
+		model.CodexModelPresetRecommended(),
+		map[string]string{
+			"sdd-strong": "gpt-5.4-mini",
+			"sdd-mid":    "gpt-5.5",
+			"sdd-cheap":  "gpt-5.3-codex",
+		},
+	)
+
+	wantRows := []string{
+		"| `sdd-propose` | `gpt-5.4` | `medium` |",
+		"| `sdd-design` | `gpt-5.4-mini` | `medium` |",
+		"| `sdd-apply` | `gpt-5.5` | `medium` |",
+		"| `sdd-explore` | `gpt-5.3-codex` | `low` |",
+	}
+	for _, wantRow := range wantRows {
+		if !strings.Contains(out, wantRow) {
+			t.Errorf("RenderCodexPhaseEffortsByPhase missing row %q; output:\n%s", wantRow, out)
+		}
 	}
 }
 
 // TestRenderCodexPhaseEffortsByPhase_HeaderPresent verifies the table has a
 // Phase column header.
 func TestRenderCodexPhaseEffortsByPhase_HeaderPresent(t *testing.T) {
-	out := model.RenderCodexPhaseEffortsByPhase(nil, model.CodexModelPresetRecommended())
+	out := model.RenderCodexPhaseEffortsByPhase(nil, model.CodexModelPresetRecommended(), nil)
 	if !strings.Contains(out, "Phase") {
 		t.Errorf("RenderCodexPhaseEffortsByPhase: missing 'Phase' header; output:\n%s", out)
 	}
@@ -508,5 +614,14 @@ func checkCarrilRowModel(t *testing.T, table string, profile string, wantModel s
 	modelCell := "| `" + wantModel + "` |"
 	if !strings.Contains(row, modelCell) {
 		t.Errorf("profile %q row = %q: want model cell %q", profile, row, modelCell)
+	}
+}
+
+func TestCodexPresetOrchestratorAssignment_AllPresetsUseSolLow(t *testing.T) {
+	for _, preset := range []model.CodexPresetKey{model.CodexPresetLowCost, model.CodexPresetRecommended, model.CodexPresetPowerful} {
+		a := model.CodexPresetOrchestratorAssignment(string(preset))
+		if a.Model != "gpt-5.6-sol" || a.Effort != model.CodexEffortLow {
+			t.Errorf("preset %q orchestrator = %s/%s, want gpt-5.6-sol/low", preset, a.Model, a.Effort)
+		}
 	}
 }

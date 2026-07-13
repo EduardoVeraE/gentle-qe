@@ -76,7 +76,7 @@ func injectInternal(homeDir string, adapter agents.Adapter, persona model.Person
 	files := make([]string, 0, 3)
 	changed := false
 
-	content := qeNeutralizeRegionalVoice(personaContent(adapter.Agent(), persona)) // (ancla qe-overlay)
+	content := qeNeutralizeRegionalVoice(personaContent(adapter.Agent(), persona, residualChannel(adapter))) // (ancla qe-overlay)
 	if content == "" {
 		return InjectionResult{}, nil
 	}
@@ -492,42 +492,62 @@ func isGentlemanConversationPersona(persona model.PersonaID) bool {
 	return persona == model.PersonaGentleman || persona == model.PersonaGentlemanNeutralArtifacts
 }
 
-func personaContent(agent model.AgentID, persona model.PersonaID) string {
+// residualChannel reports whether the adapter already delivers tone/language/
+// philosophy content through an active output-style channel that loads every
+// session, making the system-prompt persona section redundant for that
+// content. Claude Code is gated on SupportsOutputStyles(); Kimi is an explicit
+// carve-out because its KIMI.md unconditionally double-includes both the
+// persona.md and output-style.md Jinja modules regardless of that capability
+// flag (see design.md Decision 1).
+func residualChannel(adapter agents.Adapter) bool {
+	return adapter.SupportsOutputStyles() || adapter.Agent() == model.AgentKimi
+}
+
+// personaContent returns the persona asset for the given agent and persona.
+func personaContent(agent model.AgentID, persona model.PersonaID, residualContentAvailable bool) string {
 	switch persona {
 	case model.PersonaSDET: // overlay Gentle-QE (ancla qe-overlay)
 		return qePersonaContent(agent, persona)
 	case model.PersonaNeutral:
-		// Per-agent neutral selection: Hermes uses its own neutral asset with
-		// the skill-loading block rewritten for ~/.hermes/skills/ (Decision 5).
-		// All other agents receive the byte-identical generic/persona-neutral.md.
-		switch agent {
-		case model.AgentHermes:
-			return assets.MustRead("hermes/persona-neutral.md")
-		default:
-			return assets.MustRead("generic/persona-neutral.md")
-		}
+		return neutralPersonaContent(agent, residualContentAvailable)
 	case model.PersonaCustom:
 		return ""
 	default:
-		// Gentleman persona — try agent-specific asset, then generic fallback.
+		return gentlemanPersonaContent(agent)
+	}
+}
+
+func neutralPersonaContent(agent model.AgentID, residualContentAvailable bool) string {
+	if agent == model.AgentHermes {
+		return assets.MustRead("hermes/persona-neutral.md")
+	}
+	if residualContentAvailable {
 		switch agent {
 		case model.AgentClaudeCode:
-			return assets.MustRead("claude/persona-gentleman.md")
-		case model.AgentOpenCode, model.AgentKilocode:
-			return assets.MustRead("opencode/persona-gentleman.md")
+			return assets.MustRead("claude/persona-neutral-residual.md")
 		case model.AgentKimi:
-			return assets.MustRead("kimi/persona-gentleman.md")
-		case model.AgentKiroIDE:
-			// Kiro uses a steering-file based persona. The asset is identical to
-			// generic today but kept separate so it can diverge independently.
-			return assets.MustRead("kiro/persona-gentleman.md")
-		case model.AgentHermes:
-			return assets.MustRead("hermes/persona-gentleman.md")
-		default:
-			// Generic persona includes Gentleman personality + skills table + SDD orchestrator.
-			// Used by Gemini CLI, Cursor, VS Code Copilot, and any future agents.
-			return assets.MustRead("generic/persona-gentleman.md")
+			return assets.MustRead("kimi/persona-neutral-residual.md")
 		}
+	}
+	return assets.MustRead("generic/persona-neutral.md")
+}
+
+func gentlemanPersonaContent(agent model.AgentID) string {
+	// Claude and Kimi Gentleman assets are already residual/slim in place; unlike
+	// Neutral, there is no separate residual variant to choose here.
+	switch agent {
+	case model.AgentClaudeCode:
+		return assets.MustRead("claude/persona-gentleman.md")
+	case model.AgentOpenCode, model.AgentKilocode:
+		return assets.MustRead("opencode/persona-gentleman.md")
+	case model.AgentKimi:
+		return assets.MustRead("kimi/persona-gentleman.md")
+	case model.AgentKiroIDE:
+		return assets.MustRead("kiro/persona-gentleman.md")
+	case model.AgentHermes:
+		return assets.MustRead("hermes/persona-gentleman.md")
+	default:
+		return assets.MustRead("generic/persona-gentleman.md")
 	}
 }
 

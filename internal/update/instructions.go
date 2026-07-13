@@ -24,6 +24,13 @@ func updateHint(tool ToolInfo, profile system.PlatformProfile) string {
 	}
 }
 
+func updateHintForOwnership(tool ToolInfo, profile system.PlatformProfile, ownership HomebrewOwnership) string {
+	if profile.PackageManager == "brew" && ownership != HomebrewNone {
+		return fmt.Sprintf("brew upgrade --%s %s", ownership, tool.Name)
+	}
+	return updateHint(tool, profile)
+}
+
 func openCodeRegisteredNotMaterializedHint(tool ToolInfo) string {
 	pkg := strings.TrimSpace(tool.NpmPackage)
 	if pkg == "" {
@@ -33,11 +40,15 @@ func openCodeRegisteredNotMaterializedHint(tool ToolInfo) string {
 }
 
 func gentleAIHint(profile system.PlatformProfile) string { // overlay Gentle-QE (ancla qe-overlay)
-	switch profile.OS {
-	case "darwin":
+	if profile.PackageManager == "brew" && homebrewPackageInstalled(branding.Product) {
 		return "brew upgrade " + branding.Product
+	}
+
+	switch profile.OS {
 	case "linux":
 		return fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/%s/%s/main/scripts/install.sh | bash", branding.Owner, branding.Repo)
+	case "darwin":
+		return branding.Product + " upgrade (downloads pre-built binary)"
 	case "windows":
 		return fmt.Sprintf("irm https://raw.githubusercontent.com/%s/%s/main/scripts/install.ps1 | iex", branding.Owner, branding.Repo)
 	default:
@@ -46,19 +57,15 @@ func gentleAIHint(profile system.PlatformProfile) string { // overlay Gentle-QE 
 }
 
 func engramHint(profile system.PlatformProfile) string {
-	switch profile.PackageManager {
-	case "brew":
+	if profile.PackageManager == "brew" && homebrewPackageInstalled("engram") {
 		return "brew upgrade engram"
-	default:
-		return branding.Product + " upgrade (downloads pre-built binary)"
 	}
+	return branding.Product + " upgrade (downloads pre-built binary)"
 }
 
 func ggaHint(profile system.PlatformProfile) string {
-	switch profile.PackageManager {
-	case "brew":
+	if profile.PackageManager == "brew" && homebrewPackageInstalled("gga") {
 		return "brew upgrade gga"
-	default:
-		return "See https://github.com/Gentleman-Programming/gentleman-guardian-angel"
 	}
+	return "See https://github.com/Gentleman-Programming/gentleman-guardian-angel"
 }

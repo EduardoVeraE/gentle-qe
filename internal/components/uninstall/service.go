@@ -14,6 +14,7 @@ import (
 	"github.com/gentleman-programming/gentle-ai/internal/assets"
 	"github.com/gentleman-programming/gentle-ai/internal/backup"
 	"github.com/gentleman-programming/gentle-ai/internal/branding"
+	"github.com/gentleman-programming/gentle-ai/internal/components/communitytool"
 	"github.com/gentleman-programming/gentle-ai/internal/components/filemerge"
 	"github.com/gentleman-programming/gentle-ai/internal/components/gga"
 	"github.com/gentleman-programming/gentle-ai/internal/components/sdd"
@@ -219,6 +220,7 @@ func (s *Service) PartialUninstall(agentIDs []model.AgentID, componentIDs []mode
 	if len(components) == 0 {
 		components = slices.Clone(allManagedComponents)
 	}
+	components = expandVisualPolishUninstallComponents(components)
 
 	plan, err := s.buildPlan(agentIDs, components)
 	if err != nil {
@@ -246,6 +248,7 @@ func (s *Service) PartialUninstallWithProfiles(agentIDs []model.AgentID, compone
 	if len(components) == 0 {
 		components = slices.Clone(allManagedComponents)
 	}
+	components = expandVisualPolishUninstallComponents(components)
 
 	plan, err := s.buildPlan(agentIDs, components)
 	if err != nil {
@@ -254,6 +257,27 @@ func (s *Service) PartialUninstallWithProfiles(agentIDs []model.AgentID, compone
 
 	stateRemovals := stateAgentsToRemove(agentIDs, components)
 	return s.executePlan(plan, stateRemovals)
+}
+
+func expandVisualPolishUninstallComponents(components []model.ComponentID) []model.ComponentID {
+	shouldExpand := false
+	visualPolish := model.VisualPolishComponents()
+	for _, component := range components {
+		if slices.Contains(visualPolish, component) {
+			shouldExpand = true
+		}
+	}
+	if !shouldExpand {
+		return components
+	}
+
+	expanded := slices.Clone(components)
+	for _, component := range model.VisualPolishComponents() {
+		if !slices.Contains(expanded, component) {
+			expanded = append(expanded, component)
+		}
+	}
+	return expanded
 }
 
 func (s *Service) SetProfileNamesToRemove(profileNames []string) {
@@ -341,6 +365,11 @@ func (s *Service) buildPlan(agentIDs []model.AgentID, componentIDs []model.Compo
 	}
 
 	backupTargets[state.Path(s.homeDir)] = struct{}{}
+	if slices.Contains(agentIDs, model.AgentPi) {
+		for _, target := range communitytool.PiCodeGraphPaths(s.homeDir, s.workspaceDir) {
+			backupTargets[target] = struct{}{}
+		}
+	}
 
 	orderedTargets := make([]string, 0, len(backupTargets))
 	for target := range backupTargets {
@@ -374,6 +403,17 @@ func (s *Service) executePlan(p plan, agentsToRemove []model.AgentID) (Result, e
 	result := Result{
 		Manifest:   manifest,
 		BackupPath: snapshotDir,
+	}
+	// Pi ownership hashes include the shared MCP file. Remove its managed entry
+	// before other component cleanup (notably Engram) mutates that file, otherwise
+	// an unrelated mutation is indistinguishable from user drift.
+	if slices.Contains(agentsToRemove, model.AgentPi) {
+		piResult, piErr := communitytool.UninstallPiCodeGraph(s.homeDir)
+		if piErr != nil {
+			return result, fmt.Errorf("remove Pi CodeGraph integration: %w", piErr)
+		}
+		result.ChangedFiles = append(result.ChangedFiles, piResult.Files...)
+		result.ManualActions = append(result.ManualActions, piResult.ManualActions...)
 	}
 
 	for _, op := range p.operations {
@@ -680,6 +720,9 @@ func (s *Service) componentOperations(adapter agents.Adapter, componentID model.
 func context7Targets(adapter agents.Adapter, homeDir string) []string {
 	switch adapter.MCPStrategy() {
 	case model.StrategySeparateMCPFiles:
+		if adapter.Agent() == model.AgentClaudeCode {
+			return []string{adapter.SettingsPath(homeDir), adapter.MCPConfigPath(homeDir, "context7")}
+		}
 		return []string{adapter.MCPConfigPath(homeDir, "context7")}
 	case model.StrategyMergeIntoSettings, model.StrategyMCPConfigFile:
 		return []string{adapter.MCPConfigPath(homeDir, "context7")}
@@ -691,6 +734,10 @@ func context7Targets(adapter agents.Adapter, homeDir string) []string {
 func context7Operations(adapter agents.Adapter, homeDir string) []operation {
 	switch adapter.MCPStrategy() {
 	case model.StrategySeparateMCPFiles:
+		if adapter.Agent() == model.AgentClaudeCode {
+			legacyPath := adapter.MCPConfigPath(homeDir, "context7")
+			return []operation{rewriteJSONFile(adapter.SettingsPath(homeDir), jsonPath{"mcpServers", "context7"}), removeManagedContext7File(legacyPath), removeDirIfEmpty(filepath.Dir(legacyPath))}
+		}
 		path := adapter.MCPConfigPath(homeDir, "context7")
 		return []operation{removeFile(path), removeDirIfEmpty(filepath.Dir(path))}
 	case model.StrategyMergeIntoSettings:
@@ -994,6 +1041,55 @@ func isModelVariantsRandomTempName(name string) bool {
 		}
 	}
 	return true
+}
+
+func removeManagedContext7File(path string) operation {
+	return operation{
+		typeID: opRemoveFile,
+		path:   path,
+		apply: func(path string) (bool, bool, error) {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return false, false, nil
+				}
+				return false, false, err
+			}
+			if !isManagedContext7ServerJSON(content) {
+				return false, false, nil
+			}
+			if err := removeFileIfExists(path); err != nil {
+				return false, false, err
+			}
+			return true, true, nil
+		},
+	}
+}
+
+func isManagedContext7ServerJSON(content []byte) bool {
+	var root map[string]any
+	if err := json.Unmarshal(content, &root); err != nil {
+		return false
+	}
+	if command, _ := root["command"].(string); command != "npx" {
+		return false
+	}
+	rawArgs, ok := root["args"].([]any)
+	if !ok || len(rawArgs) != 4 {
+		return false
+	}
+	args := make([]string, 0, len(rawArgs))
+	for _, raw := range rawArgs {
+		arg, ok := raw.(string)
+		if !ok {
+			return false
+		}
+		args = append(args, arg)
+	}
+	return args[0] == "-y" &&
+		strings.HasPrefix(args[1], "--package=@upstash/context7-mcp@") &&
+		args[2] == "--" &&
+		args[3] == "context7-mcp"
 }
 
 func removeFile(path string) operation {

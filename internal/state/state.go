@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gentleman-programming/gentle-ai/internal/branding"
+	"github.com/gentleman-programming/gentle-ai/internal/components/filemerge"
 )
 
 // stateDir es el dotfile de estado del fork, con fuente ÚNICA en branding.StateDir
@@ -27,6 +28,12 @@ type ModelAssignmentState struct {
 	Effort     string `json:"effort,omitempty"`
 }
 
+// CodexOrchestratorAssignmentState is the persisted main-session assignment.
+type CodexOrchestratorAssignmentState struct {
+	Model  string `json:"model"`
+	Effort string `json:"effort"`
+}
+
 // ClaudePhaseAssignmentState is the JSON-serialisable form of a Claude
 // subagent model+effort assignment. Empty Effort means Claude Code default.
 type ClaudePhaseAssignmentState struct {
@@ -37,6 +44,11 @@ type ClaudePhaseAssignmentState struct {
 // InstallState holds the persisted user selections from the last install run.
 type InstallState struct {
 	InstalledAgents []string `json:"installed_agents"`
+	// CommunityTools records optional tools explicitly selected in the Gentle AI
+	// installer. Configured distinguishes a completed empty selection from legacy
+	// state files that predate persistence of this choice.
+	CommunityTools           []string `json:"community_tools,omitempty"`
+	CommunityToolsConfigured bool     `json:"community_tools_configured,omitempty"`
 
 	// ClaudeModelAssignments maps SDD phase names (e.g. "sdd-explore") to a
 	// Claude model alias ("fable", "opus", "sonnet", "haiku"). Persisted so that
@@ -58,15 +70,18 @@ type InstallState struct {
 	// user's per-phase effort preset instead of falling back to Recommended.
 	CodexModelAssignments map[string]string `json:"codexModelAssignments,omitempty"`
 
+	// CodexOrchestratorAssignment is optional so legacy state preserves the user's top-level Codex configuration.
+	CodexOrchestratorAssignment *CodexOrchestratorAssignmentState `json:"codexOrchestratorAssignment,omitempty"`
+
 	// CodexCarrilModelAssignments maps the three carril profile names
 	// (sdd-strong|sdd-mid|sdd-cheap) to OpenAI subscription model IDs
-	// (e.g. "gpt-5.5", "gpt-5.4-mini"). Persisted so that `gentle-ai sync`
+	// (e.g. "gpt-5.6-sol", "gpt-5.6-luna"). Persisted so that `gentle-ai sync`
 	// regenerates profile files with the user's chosen model per tier.
 	// Absent/empty = resolve to DefaultCarrilModels at runtime (backward-compat).
 	CodexCarrilModelAssignments map[string]string `json:"codexCarrilModelAssignments,omitempty"`
 
 	// CodexPhaseModelAssignments maps each of the 13 SDD phase names to the
-	// model id the user assigned in the Custom per-phase picker (e.g. "gpt-5.5").
+	// model id the user assigned in the Custom per-phase picker (e.g. "gpt-5.6-sol").
 	// When non-nil, overrides the carril-level model selection for that phase.
 	// Absent/nil = not using custom per-phase assignments (preset/carril behavior
 	// unchanged for backward-compatibility).
@@ -120,9 +135,8 @@ func Read(homeDir string) (InstallState, error) {
 
 // MergeAgents returns a new InstallState that combines existing with the
 // provided newAgents. The new agents are appended to existing.InstalledAgents
-// with deduplication. All other fields (ModelAssignments,
-// ClaudeModelAssignments, KiroModelAssignments, Persona) are taken from
-// existing and are never overwritten.
+// with deduplication. All other persisted selections, including community
+// tools, model assignments, and persona, are preserved from existing.
 //
 // This is the correct operation for an incremental `--agent X` install: the
 // caller loads the persisted state, calls MergeAgents, and writes the result
@@ -147,11 +161,14 @@ func MergeAgents(existing InstallState, newAgents []string) InstallState {
 
 	return InstallState{
 		InstalledAgents:             merged,
+		CommunityTools:              existing.CommunityTools,
+		CommunityToolsConfigured:    existing.CommunityToolsConfigured,
 		ModelAssignments:            existing.ModelAssignments,
 		ClaudeModelAssignments:      existing.ClaudeModelAssignments,
 		ClaudePhaseAssignments:      existing.ClaudePhaseAssignments,
 		KiroModelAssignments:        existing.KiroModelAssignments,
 		CodexModelAssignments:       existing.CodexModelAssignments,
+		CodexOrchestratorAssignment: existing.CodexOrchestratorAssignment,
 		CodexCarrilModelAssignments: existing.CodexCarrilModelAssignments,
 		CodexPhaseModelAssignments:  existing.CodexPhaseModelAssignments,
 		Persona:                     existing.Persona,
@@ -171,5 +188,6 @@ func Write(homeDir string, s InstallState) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path(homeDir), append(data, '\n'), 0o644)
+	_, err = filemerge.WriteFileAtomic(Path(homeDir), append(data, '\n'), 0o644)
+	return err
 }

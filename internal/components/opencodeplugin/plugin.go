@@ -52,7 +52,7 @@ const gentleLogoPluginFile = "gentle-logo.tsx"
 
 const gentleLogoPluginSource = `// @ts-nocheck
 /** @jsxImportSource @opentui/solid */
-import type { TuiPlugin, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import type { TuiPlugin } from "@opencode-ai/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo } from "solid-js"
 
@@ -70,7 +70,7 @@ const roseArt = [
 
 const compactArt = ["✦ Gentle-QE ✦"]
 
-const Logo = (props: { theme: TuiThemeCurrent }) => {
+const Logo = () => {
   const dim = useTerminalDimensions()
   const lines = createMemo(() => {
     const term = dim()
@@ -80,7 +80,7 @@ const Logo = (props: { theme: TuiThemeCurrent }) => {
   return (
     <box flexDirection="column" alignItems="center">
       {lines().map((line) => (
-        <text fg={props.theme.accent}>{line}</text>
+        <text fg="magenta">{line}</text>
       ))}
     </box>
   )
@@ -91,8 +91,8 @@ const tui: TuiPlugin = async (api) => {
     id,
     order: 100,
     slots: {
-      home_logo(ctx) {
-        return <Logo theme={ctx.theme.current} />
+      home_logo() {
+        return <Logo />
       },
     },
   })
@@ -191,6 +191,45 @@ func ensureTUIPlugin(path, pkg string) (bool, error) {
 		return false, err
 	}
 	return wr.Changed, nil
+}
+
+// removeTUIPlugin is the uninstall-side mirror of ensureTUIPlugin. It removes
+// every occurrence of pkg from tui.json's plugin[] list. It returns the exact
+// replacement bytes without writing so the caller can perform a guarded write.
+// If the file is missing or pkg is not present, it returns (false, nil, nil).
+func removeTUIPlugin(path, pkg string) (bool, []byte, error) {
+	root := map[string]any{"$schema": "https://opencode.ai/tui.json"}
+	data, readErr := os.ReadFile(path)
+	switch {
+	case readErr == nil && len(bytes.TrimSpace(data)) > 0:
+		if err := json.Unmarshal(data, &root); err != nil {
+			return false, nil, fmt.Errorf("parse OpenCode TUI config %q: %w", path, err)
+		}
+	case readErr != nil && !os.IsNotExist(readErr):
+		return false, nil, fmt.Errorf("read OpenCode TUI config %q: %w", path, readErr)
+	}
+
+	plugins := stringSlice(root["plugin"])
+	kept := make([]string, 0, len(plugins))
+	changedAny := false
+	for _, existing := range plugins {
+		if existing == pkg {
+			changedAny = true
+			continue
+		}
+		kept = append(kept, existing)
+	}
+	if !changedAny {
+		return false, nil, nil
+	}
+	root["plugin"] = kept
+
+	out, err := json.MarshalIndent(root, "", "  ")
+	if err != nil {
+		return false, nil, err
+	}
+	out = append(out, '\n')
+	return true, out, nil
 }
 
 func stringSlice(value any) []string {

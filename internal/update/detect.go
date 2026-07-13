@@ -1,6 +1,7 @@
 package update
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -74,24 +75,33 @@ func detectInstalledVersion(ctx context.Context, tool ToolInfo, currentBuildVers
 
 	// Kill the subprocess when the context fires. We use a goroutine because
 	// the testable execCommand var returns a plain *exec.Cmd (not CommandContext).
+	// overlay Gentle-QE (upstream race fix): Start() the command BEFORE launching
+	// the kill goroutine, so cmd.Process is assigned first. The upstream code read
+	// cmd.Process inside the goroutine while cmd.Output()'s internal Start() wrote
+	// it — a data race caught by `go test -race`. Not QE behavior; report upstream
+	// and revert on integration (see gentle-qe bead).
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Start(); err != nil {
+		return "" // command failed to start — binary exists but version unknown
+	}
+
 	done := make(chan struct{})
 	go func() {
 		select {
 		case <-detectCtx.Done():
-			if cmd.Process != nil {
-				_ = cmd.Process.Kill()
-			}
+			_ = cmd.Process.Kill()
 		case <-done:
 		}
 	}()
 
-	out, err := cmd.Output()
+	err := cmd.Wait()
 	close(done)
 	if err != nil {
 		return "" // command failed or timed out — binary exists but version unknown
 	}
 
-	return parseVersionFromOutput(strings.TrimSpace(string(out)))
+	return parseVersionFromOutput(strings.TrimSpace(stdout.String()))
 }
 
 // findFallbackBinary checks the tool's FallbackPaths for a binary that exists

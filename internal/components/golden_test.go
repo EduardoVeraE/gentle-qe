@@ -136,6 +136,8 @@ func TestGoldenSDD_OpenCode(t *testing.T) {
 	// Golden-check a representative command file.
 	sddInit := readTestFile(t, filepath.Join(home, ".config", "opencode", "commands", "sdd-init.md"))
 	assertGolden(t, "sdd-opencode-cmd-sdd-init.golden", sddInit)
+	sddApply := readTestFile(t, filepath.Join(home, ".config", "opencode", "commands", "sdd-apply.md"))
+	assertGolden(t, "sdd-opencode-cmd-sdd-apply.golden", sddApply)
 
 	// Golden-check a representative SDD skill file.
 	skillInit := readTestFile(t, filepath.Join(home, ".config", "opencode", "skills", "sdd-init", "SKILL.md"))
@@ -304,7 +306,8 @@ func TestGoldenSDD_Codex(t *testing.T) {
 	home := t.TempDir()
 
 	result, err := sdd.Inject(home, codexAdapter(), "", sdd.InjectOptions{
-		CodexModelAssignments: model.CodexModelPresetRecommended(),
+		CodexModelAssignments:       model.CodexModelPresetRecommended(),
+		CodexCarrilModelAssignments: model.CodexCarrilModelsForPreset("recommended"),
 	})
 	if err != nil {
 		t.Fatalf("sdd.Inject(codex) error = %v", err)
@@ -340,7 +343,8 @@ func TestGoldenSDD_Codex_LowCost(t *testing.T) {
 	home := t.TempDir()
 
 	result, err := sdd.Inject(home, codexAdapter(), "", sdd.InjectOptions{
-		CodexModelAssignments: model.CodexModelPresetLowCost(),
+		CodexModelAssignments:       model.CodexModelPresetLowCost(),
+		CodexCarrilModelAssignments: model.CodexCarrilModelsForPreset("low-cost"),
 	})
 	if err != nil {
 		t.Fatalf("sdd.Inject(codex, LowCost) error = %v", err)
@@ -357,7 +361,8 @@ func TestGoldenSDD_Codex_Powerful(t *testing.T) {
 	home := t.TempDir()
 
 	result, err := sdd.Inject(home, codexAdapter(), "", sdd.InjectOptions{
-		CodexModelAssignments: model.CodexModelPresetPowerful(),
+		CodexModelAssignments:       model.CodexModelPresetPowerful(),
+		CodexCarrilModelAssignments: model.CodexCarrilModelsForPreset("powerful"),
 	})
 	if err != nil {
 		t.Fatalf("sdd.Inject(codex, Powerful) error = %v", err)
@@ -511,6 +516,11 @@ func TestGoldenPersona_Claude_Neutral(t *testing.T) {
 
 	claudeMD := readTestFile(t, filepath.Join(home, ".claude", "CLAUDE.md"))
 	assertGolden(t, "persona-claude-neutral.golden", claudeMD)
+
+	// Locks the reconciled Neutral output style (Decision 4) — no golden
+	// existed for this file before the canonical-channel change.
+	outputStyle := readTestFile(t, filepath.Join(home, ".claude", "output-styles", "neutral.md"))
+	assertGolden(t, "persona-claude-neutral-outputstyle.golden", outputStyle)
 }
 
 func TestGoldenPersona_OpenCode_Gentleman(t *testing.T) {
@@ -618,19 +628,24 @@ func TestGoldenEngram_Claude(t *testing.T) {
 
 	engram.SetLookPathForTest(t, "/opt/homebrew/bin/engram", "")
 
-	result, err := engram.Inject(home, claudeAdapter())
+	// Pin the engram binary version above the Decision 1 floor (v1.4.0) so
+	// this golden reflects the SLIM CLAUDE.md section — the MCP `instructions`
+	// channel + SessionStart hook are the verified redundant channels for
+	// Claude Code (design.md Decision 1). "1.18.0" matches the live evidence
+	// cited in design.md.
+	result, err := engram.InjectWithOptions(home, claudeAdapter(), engram.InjectOptions{Version: "1.18.0"})
 	if err != nil {
-		t.Fatalf("engram.Inject(claude) error = %v", err)
+		t.Fatalf("engram.InjectWithOptions(claude) error = %v", err)
 	}
 	if !result.Changed {
-		t.Fatalf("engram.Inject(claude) changed = false")
+		t.Fatalf("engram.InjectWithOptions(claude) changed = false")
 	}
 
 	// MCP server JSON config.
 	mcpJSON := readTestFile(t, filepath.Join(home, ".claude", "mcp", "engram.json"))
 	assertGolden(t, "engram-claude-mcp.golden", mcpJSON)
 
-	// CLAUDE.md with engram-protocol section.
+	// CLAUDE.md with engram-protocol section (slim, per Decision 1).
 	claudeMD := readTestFile(t, filepath.Join(home, ".claude", "CLAUDE.md"))
 	assertGolden(t, "engram-claude-claudemd.golden", claudeMD)
 }
@@ -689,6 +704,36 @@ func TestGoldenEngram_Kiro(t *testing.T) {
 	// Kiro reads MCP from ~/.kiro/settings/mcp.json (not from the app config dir)
 	mcpJSON := readTestFile(t, filepath.Join(home, ".kiro", "settings", "mcp.json"))
 	assertGolden(t, "engram-kiro-mcp.golden", mcpJSON)
+}
+
+// TestGoldenEngram_Codex captures the rendered Codex model_instructions_file
+// and experimental_compact_prompt_file output after the canonical-asset
+// consolidation (design.md Decision 3). These goldens catch the content
+// growth from consolidating onto the canonical `full` text: the old
+// codex/engram-instructions.md (6 "WHEN TO SAVE" bullets, no self-check line)
+// is replaced by the fuller canonical text (12 "PROACTIVE SAVE TRIGGERS"
+// bullets + a self-check line) concatenated with the unchanged PASSIVE
+// CAPTURE section.
+func TestGoldenEngram_Codex(t *testing.T) {
+	home := t.TempDir()
+	restore := codexagent.SetRuntimeVersionCommandForTest("codex-cli 0.144.0", nil)
+	t.Cleanup(restore)
+
+	engram.SetLookPathForTest(t, "/opt/homebrew/bin/engram", "")
+
+	result, err := engram.Inject(home, codexAdapter())
+	if err != nil {
+		t.Fatalf("engram.Inject(codex) error = %v", err)
+	}
+	if !result.Changed {
+		t.Fatalf("engram.Inject(codex) changed = false")
+	}
+
+	instructions := readTestFile(t, filepath.Join(home, ".codex", "engram-instructions.md"))
+	assertGolden(t, "engram-codex-instructions.golden", instructions)
+
+	compactPrompt := readTestFile(t, filepath.Join(home, ".codex", "engram-compact-prompt.md"))
+	assertGolden(t, "engram-codex-compact-prompt.golden", compactPrompt)
 }
 
 // ---------------------------------------------------------------------------
@@ -792,8 +837,11 @@ func TestGoldenCombined_Claude(t *testing.T) {
 	if _, err := sdd.Inject(home, claudeAdapter(), ""); err != nil {
 		t.Fatalf("sdd.Inject error = %v", err)
 	}
-	if _, err := engram.Inject(home, claudeAdapter()); err != nil {
-		t.Fatalf("engram.Inject error = %v", err)
+	// Pin the engram version above the Decision 1 floor so the combined
+	// CLAUDE.md reflects the slim engram-protocol section, matching
+	// TestGoldenEngram_Claude above.
+	if _, err := engram.InjectWithOptions(home, claudeAdapter(), engram.InjectOptions{Version: "1.18.0"}); err != nil {
+		t.Fatalf("engram.InjectWithOptions error = %v", err)
 	}
 
 	claudeMD := readTestFile(t, filepath.Join(home, ".claude", "CLAUDE.md"))

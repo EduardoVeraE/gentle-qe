@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -66,15 +67,26 @@ const maxScriptSize = 1 * 1024 * 1024 // 1 MB
 //   - OpenCode plugin method → update materialized package in ~/.config/opencode when possible
 //   - unknown method → manualFallback with explicit message
 func runStrategy(ctx context.Context, r update.UpdateResult, profile system.PlatformProfile) (bool, error) {
-	if isBetaGentleAIUpgrade(r) && profile.OS != "windows" {
+	ownership := update.HomebrewNone
+	if profile.PackageManager == "brew" && r.Tool.InstallMethod != update.InstallOpenCodePlugin {
+		var err error
+		ownership, err = homebrewOwnershipDetector(r.Tool.Name)
+		if err != nil {
+			return false, fmt.Errorf("detect Homebrew ownership for %s: %w", r.Tool.Name, err)
+		}
+	}
+	if isBetaGentleAIUpgrade(r) && profile.OS != "windows" && ownership == update.HomebrewNone {
 		return false, goInstallMainUpgrade(r.Tool)
 	}
 
 	method := effectiveMethod(r.Tool, profile)
+	if ownership != update.HomebrewNone {
+		method = update.InstallBrew
+	}
 
 	switch method {
 	case update.InstallBrew:
-		return false, brewUpgrade(ctx, r.Tool.Name)
+		return false, brewUpgrade(ctx, r, ownership)
 	case update.InstallGoInstall:
 		return false, goInstallUpgrade(ctx, r.Tool, r.LatestVersion)
 	case update.InstallBinary:
@@ -151,12 +163,39 @@ func opencodePluginUpgrade(ctx context.Context, r update.UpdateResult) error {
 	cmd.Stdin = nil
 	cmd.Env = openCodePluginUpgradeEnv(cmd.Env)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s upgrade %s in %s: %w (output: %s)", pm, pkg, opencodeDir, err, string(out))
+		outStr := string(out)
+		if pm == "npm" && npmErrorCode(outStr) == "ERESOLVE" {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			fmt.Fprintln(os.Stderr, "WARNING: npm reported an ERESOLVE peer dependency conflict; retrying with --legacy-peer-deps")
+			retryCmd := execCommand("npm", append([]string{"install", "--save", "--no-audit", "--no-fund", "--legacy-peer-deps"}, targets...)...)
+			retryCmd.Dir = opencodeDir
+			retryCmd.Stdin = nil
+			retryCmd.Env = openCodePluginUpgradeEnv(retryCmd.Env)
+			if retryOut, retryErr := retryCmd.CombinedOutput(); retryErr != nil {
+				return fmt.Errorf("%s upgrade %s in %s: retry with --legacy-peer-deps failed: %w (retry output: %s); original error: %v (original output: %s)", pm, pkg, opencodeDir, retryErr, string(retryOut), err, outStr)
+			}
+		} else {
+			return fmt.Errorf("%s upgrade %s in %s: %w (output: %s)", pm, pkg, opencodeDir, err, outStr)
+		}
 	}
 	if err := clearOpenCodePluginPackageCache(homeDir, pkg); err != nil {
 		return fmt.Errorf("clear OpenCode package cache for %s: %w", pkg, err)
 	}
 	return nil
+}
+
+func npmErrorCode(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 4 && fields[0] == "npm" && fields[1] == "error" && fields[2] == "code" {
+			return fields[3]
+		}
+	}
+	return ""
 }
 
 func openCodePluginRegisteredOrMaterialized(opencodeDir, pkg string) (bool, bool, error) {
@@ -309,7 +348,9 @@ func openCodePluginRegisteredPendingHint(pkg string) string {
 // new versions published since the user last ran it. If update fails (e.g. no
 // network), the upgrade is still attempted using the existing cache — a stale
 // cache is better than no upgrade at all.
-func brewUpgrade(ctx context.Context, toolName string) error {
+func brewUpgrade(ctx context.Context, r update.UpdateResult, ownership update.HomebrewOwnership) error {
+	toolName := r.Tool.Name
+	flag := "--" + string(ownership)
 	// Ensure the Gentleman-Programming homebrew tap is present before upgrading.
 	// Non-fatal: brew tap is a no-op when already present; if it fails for any other
 	// reason, the subsequent brew upgrade will surface the real error. See issue #455:
@@ -324,7 +365,7 @@ func brewUpgrade(ctx context.Context, toolName string) error {
 	// our formula/cask, not the whole tap or third-party taps. Older Homebrew versions
 	// may not support `brew trust`, so this is non-fatal and the upgrade output
 	// below remains the source of truth.
-	trustCmd := execCommand("brew", "trust", homebrewTrustFlag(toolName), gentlemanProgrammingTapRef(toolName))
+	trustCmd := execCommand("brew", "trust", flag, gentlemanProgrammingTapRef(toolName))
 	trustCmd.Stdin = nil
 	_ = trustCmd.Run()
 
@@ -334,10 +375,33 @@ func brewUpgrade(ctx context.Context, toolName string) error {
 	updateCmd.Stdin = nil
 	_ = updateCmd.Run() // ignore error intentionally
 
-	upgradeCmd := execCommand("brew", "upgrade", toolName)
+	upgradeCmd := execCommand("brew", "upgrade", flag, toolName)
 	upgradeCmd.Stdin = nil
 	if out, err := upgradeCmd.CombinedOutput(); err != nil {
-		return formatBrewUpgradeError(toolName, err, string(out))
+		return formatBrewUpgradeError(toolName, ownership, err, string(out))
+	}
+	if ownership == update.HomebrewCask {
+		return verifyLegacyCaskTarget(r)
+	}
+	return nil
+}
+
+var brewVersionRegexp = regexp.MustCompile(`\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?`)
+
+func verifyLegacyCaskTarget(r update.UpdateResult) error {
+	migration := legacyCaskMigration(r.Tool.Name)
+	if len(r.Tool.DetectCmd) == 0 {
+		return fmt.Errorf("cannot verify Homebrew cask %s after upgrade; %s", r.Tool.Name, migration)
+	}
+	cmd := execCommand(r.Tool.DetectCmd[0], r.Tool.DetectCmd[1:]...)
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("verify Homebrew cask %s after upgrade: %w; %s", r.Tool.Name, err, migration)
+	}
+	installed := brewVersionRegexp.FindString(string(out))
+	target := brewVersionRegexp.FindString(r.LatestVersion)
+	if installed == "" || target == "" || installed != target {
+		return fmt.Errorf("Homebrew cask %s remains at %q after targeting %q; %s", r.Tool.Name, installed, target, migration)
 	}
 	return nil
 }
@@ -353,20 +417,30 @@ func homebrewTrustFlag(toolName string) string {
 	return "--formula"
 }
 
-func formatBrewUpgradeError(toolName string, err error, output string) error {
-	message := fmt.Sprintf("brew upgrade %s: %v (output: %s)", toolName, err, output)
-	if advice := homebrewFailureAdvice(toolName, output); advice != "" {
+func legacyCaskMigration(toolName string) string {
+	return fmt.Sprintf("migrate the legacy cask to the current formula:\n  brew uninstall --cask %s\n  brew install --formula %s", strings.TrimSpace(toolName), gentlemanProgrammingTapRef(toolName))
+}
+
+func formatBrewUpgradeError(toolName string, ownership update.HomebrewOwnership, err error, output string) error {
+	message := fmt.Sprintf("brew upgrade --%s %s: %v (output: %s)", ownership, toolName, err, output)
+	if advice := homebrewFailureAdvice(toolName, output, ownership); advice != "" {
 		message += "\n\n" + advice
+	}
+	if ownership == update.HomebrewCask {
+		message += "\n\n" + legacyCaskMigration(toolName)
 	}
 	return errors.New(message)
 }
 
-func homebrewFailureAdvice(toolName string, output string) string {
+func homebrewFailureAdvice(toolName string, output string, detected ...update.HomebrewOwnership) string {
 	lower := strings.ToLower(output)
 	ref := gentlemanProgrammingTapRef(toolName)
+	flag := homebrewTrustFlag(toolName)
+	if len(detected) > 0 {
+		flag = "--" + string(detected[0])
+	}
 
 	if strings.Contains(lower, "untrusted tap") || strings.Contains(lower, "tap trust is required") || strings.Contains(lower, "homebrew_require_tap_trust") {
-		flag := homebrewTrustFlag(toolName)
 		artifact := strings.TrimPrefix(flag, "--")
 		if strings.Contains(lower, "--cask") || strings.Contains(lower, "load cask") {
 			flag = "--cask"
@@ -375,13 +449,13 @@ func homebrewFailureAdvice(toolName string, output string) string {
 			flag = "--formula"
 			artifact = "formula"
 		}
-		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this %s %s, then retry:\n  brew trust %s %s\n  brew upgrade %s", branding.Display, artifact, flag, ref, toolName)
+		return fmt.Sprintf("Homebrew requires explicit trust for external taps. Trust only this %s %s, then retry:\n  brew trust %s %s\n  brew upgrade %s %s", branding.Display, artifact, flag, ref, flag, toolName)
 	}
 
 	if strings.Contains(lower, "bubblewrap is installed but cannot create a rootless sandbox") ||
 		strings.Contains(lower, "rootless sandbox") ||
 		strings.Contains(lower, "homebrew_no_sandbox_linux") {
-		return "Homebrew on Linux could not create its Bubblewrap rootless sandbox. This requires an explicit admin/security decision: enabling unprivileged user namespaces lets Homebrew use its sandbox but changes host kernel/AppArmor policy. If acceptable, run:\n  sudo sysctl -w kernel.unprivileged_userns_clone=1\n  sudo sysctl -w user.max_user_namespaces=28633\n  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true\n\nFinal workaround if your distro policy forbids this sandbox:\n  HOMEBREW_NO_SANDBOX_LINUX=1 brew upgrade " + toolName
+		return "Homebrew on Linux could not create its Bubblewrap rootless sandbox. This requires an explicit admin/security decision: enabling unprivileged user namespaces lets Homebrew use its sandbox but changes host kernel/AppArmor policy. If acceptable, run:\n  sudo sysctl -w kernel.unprivileged_userns_clone=1\n  sudo sysctl -w user.max_user_namespaces=28633\n  sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true\n\nFinal workaround if your distro policy forbids this sandbox:\n  HOMEBREW_NO_SANDBOX_LINUX=1 brew upgrade " + flag + " " + toolName
 	}
 
 	return ""

@@ -9,11 +9,20 @@ import (
 	"testing"
 )
 
-var sddLanguageContractRequired = []string{
-	"The active persona controls direct user/orchestrator conversation only.",
+var sddArtifactLanguageContractRequired = []string{
 	"Generated technical artifacts default to English",
+	"If technical artifacts are explicitly requested in another language, use a neutral/professional register",
 	"Public/contextual comments follow the target context language",
-	"If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish",
+	"Explicit user language or tone overrides win; otherwise use a neutral/professional register",
+}
+
+var sddOrchestratorLanguageContractRequired = append([]string{
+	"The active persona controls direct user/orchestrator conversation only.",
+}, sddArtifactLanguageContractRequired...)
+
+var sddLanguageSpecificFallbacks = []string{
+	"If Spanish technical artifacts are explicitly requested",
+	"Spanish comments default to neutral/professional Spanish",
 }
 
 var sddKnownLanguageLeaks = []string{
@@ -29,12 +38,16 @@ var directReplyEnglishNoCodeSwitchRequired = []string{
 
 func TestManagedDirectReplyAssetsEnforceEnglishNoCodeSwitching(t *testing.T) {
 	tests := []struct {
-		name string
-		path string
+		name        string
+		path        string
+		combineWith string // "" when the asset alone still carries the contract
 	}{
 		{name: "claude gentleman output style", path: "claude/output-style-gentleman.md"},
 		{name: "claude neutral output style", path: "claude/output-style-neutral.md"},
-		{name: "claude gentleman persona", path: "claude/persona-gentleman.md"},
+		// Claude and Kimi personas are residuals (Decision 1) — evaluate the
+		// combined persona-residual + output-style channel, not the persona
+		// file alone.
+		{name: "claude gentleman persona", path: "claude/persona-gentleman.md", combineWith: "claude/output-style-gentleman.md"},
 		{name: "generic gentleman persona", path: "generic/persona-gentleman.md"},
 		{name: "generic neutral persona", path: "generic/persona-neutral.md"},
 		{name: "hermes gentleman persona", path: "hermes/persona-gentleman.md"},
@@ -42,16 +55,19 @@ func TestManagedDirectReplyAssetsEnforceEnglishNoCodeSwitching(t *testing.T) {
 		{name: "kiro gentleman persona", path: "kiro/persona-gentleman.md"},
 		{name: "kimi gentleman output style", path: "kimi/output-style-gentleman.md"},
 		{name: "kimi neutral output style", path: "kimi/output-style-neutral.md"},
-		{name: "kimi gentleman persona", path: "kimi/persona-gentleman.md"},
+		{name: "kimi gentleman persona", path: "kimi/persona-gentleman.md", combineWith: "kimi/output-style-gentleman.md"},
 		{name: "opencode gentleman persona", path: "opencode/persona-gentleman.md"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			content := MustRead(tc.path)
+			if tc.combineWith != "" {
+				content += "\n" + MustRead(tc.combineWith)
+			}
 			for _, required := range directReplyEnglishNoCodeSwitchRequired {
 				if !strings.Contains(content, required) {
-					t.Fatalf("%s missing direct-reply English no-code-switch contract %q", tc.path, required)
+					t.Fatalf("%s (combined=%q) missing direct-reply English no-code-switch contract %q", tc.path, tc.combineWith, required)
 				}
 			}
 		})
@@ -68,15 +84,38 @@ func TestSDDOrchestratorAssetsEnforceLanguageContract(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			content := MustRead(path)
 
-			for _, required := range sddLanguageContractRequired {
+			for _, required := range sddOrchestratorLanguageContractRequired {
 				if !strings.Contains(content, required) {
 					t.Fatalf("%s missing language contract wording %q", path, required)
+				}
+			}
+			for _, fallback := range sddLanguageSpecificFallbacks {
+				if strings.Contains(content, fallback) {
+					t.Fatalf("%s contains language-specific fallback wording %q", path, fallback)
 				}
 			}
 
 			for _, leak := range sddKnownLanguageLeaks {
 				if strings.Contains(content, leak) {
 					t.Fatalf("%s contains persona-agnostic language leak %q", path, leak)
+				}
+			}
+		})
+	}
+}
+
+func TestSDDPhaseSkillsEnforceLanguageContract(t *testing.T) {
+	for _, path := range allSDDPhaseSkillAssetPaths(t) {
+		t.Run(path, func(t *testing.T) {
+			content := MustRead(path)
+			for _, required := range sddArtifactLanguageContractRequired {
+				if !strings.Contains(content, required) {
+					t.Fatalf("%s missing language contract wording %q", path, required)
+				}
+			}
+			for _, fallback := range sddLanguageSpecificFallbacks {
+				if strings.Contains(content, fallback) {
+					t.Fatalf("%s contains language-specific fallback wording %q", path, fallback)
 				}
 			}
 		})
@@ -109,12 +148,34 @@ func TestSupportedAgentSDDLanguageMatrix(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.agent, func(t *testing.T) {
 			content := MustRead(tc.path)
-			for _, required := range sddLanguageContractRequired {
+			for _, required := range sddOrchestratorLanguageContractRequired {
 				if !strings.Contains(content, required) {
 					t.Fatalf("agent %s asset %s missing language contract wording %q", tc.agent, tc.path, required)
 				}
 			}
 		})
+	}
+}
+
+func allSDDPhaseSkillAssetPaths(t *testing.T) []string {
+	t.Helper()
+	paths, err := fs.Glob(FS, "skills/sdd-*/SKILL.md")
+	if err != nil {
+		t.Fatalf("Glob embedded SDD phase skills: %v", err)
+	}
+	if len(paths) != 10 {
+		t.Fatalf("SDD phase skill asset count = %d, want 10", len(paths))
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func TestShippedReviewAssetsDoNotInstructFixTouchedLineDiscovery(t *testing.T) {
+	for _, path := range allReviewLifecycleAssetPaths(t) {
+		content := MustRead(path)
+		if strings.Contains(content, "MUST review only fix-touched lines") {
+			t.Fatalf("%s retains stale broad post-fix discovery instructions", path)
+		}
 	}
 }
 
@@ -232,18 +293,28 @@ func TestCommentWriterLanguageContractSources(t *testing.T) {
 }
 
 func TestGentlemanPersonaKeepsDirectConversationVoice(t *testing.T) {
-	for _, path := range []string{
-		"claude/persona-gentleman.md",
-		"generic/persona-gentleman.md",
-		"kiro/persona-gentleman.md",
-		"kimi/persona-gentleman.md",
-		"opencode/persona-gentleman.md",
-	} {
-		t.Run(path, func(t *testing.T) {
-			content := MustRead(path)
+	// Claude and Kimi personas are residuals (Decision 1) — the direct-
+	// conversation voice now lives exclusively in the output style; evaluate
+	// the combined persona-residual + output-style channel for those two.
+	tests := []struct {
+		path        string
+		combineWith string
+	}{
+		{path: "claude/persona-gentleman.md", combineWith: "claude/output-style-gentleman.md"},
+		{path: "generic/persona-gentleman.md"},
+		{path: "kiro/persona-gentleman.md"},
+		{path: "kimi/persona-gentleman.md", combineWith: "kimi/output-style-gentleman.md"},
+		{path: "opencode/persona-gentleman.md"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.path, func(t *testing.T) {
+			content := MustRead(tc.path)
+			if tc.combineWith != "" {
+				content += "\n" + MustRead(tc.combineWith)
+			}
 			for _, required := range []string{"Rioplatense", "voseo", "Passionate teacher"} {
 				if !strings.Contains(content, required) {
-					t.Fatalf("%s missing Gentleman direct-conversation voice marker %q", path, required)
+					t.Fatalf("%s (combined=%q) missing Gentleman direct-conversation voice marker %q", tc.path, tc.combineWith, required)
 				}
 			}
 		})
@@ -334,6 +405,27 @@ func allSDDOrchestratorAssetPaths(t *testing.T) []string {
 		return nil
 	}); err != nil {
 		t.Fatalf("WalkDir embedded assets: %v", err)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func allReviewLifecycleAssetPaths(t *testing.T) []string {
+	t.Helper()
+	var paths []string
+	if err := fs.WalkDir(FS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		if strings.Contains(MustRead(path), "MUST review only fix-touched lines") {
+			paths = append(paths, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("WalkDir embedded review assets: %v", err)
 	}
 	sort.Strings(paths)
 	return paths

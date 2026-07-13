@@ -3,7 +3,9 @@ package permissions
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -27,6 +29,43 @@ func vscodeAdapter() agents.Adapter      { return vscode.NewAdapter() }
 func codexAdapter() agents.Adapter       { return codex.NewAdapter() }
 func antigravityAdapter() agents.Adapter { return antigravity.NewAdapter() }
 func hermesAdapter() agents.Adapter      { return hermes.NewAdapter() }
+
+func tomlSection(text, header string) string {
+	start := strings.Index(text, header)
+	if start == -1 {
+		return ""
+	}
+	section := text[start+len(header):]
+	if next := strings.Index(section, "\n["); next != -1 {
+		section = section[:next]
+	}
+	return section
+}
+
+func assertCodexWorkspaceWriteRulesScoped(t *testing.T, text string) {
+	t.Helper()
+
+	rootFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem]`)
+	for _, rule := range []string{`"." = "write"`, `".git/**" = "write"`} {
+		if strings.Contains(rootFilesystem, rule) {
+			t.Fatalf("root filesystem table contains workspace write rule %q; got:\n%s", rule, rootFilesystem)
+		}
+	}
+
+	scopedFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem.":workspace_roots"]`)
+	if scopedFilesystem == "" {
+		t.Fatalf("config.toml missing workspace-scoped filesystem table; got:\n%s", text)
+	}
+	for _, rule := range []string{`"." = "write"`, `".git/**" = "write"`} {
+		if !strings.Contains(scopedFilesystem, rule) {
+			t.Fatalf("workspace-scoped filesystem table missing workspace write rule %q; got:\n%s", rule, scopedFilesystem)
+		}
+	}
+}
+
+func codexWorkspaceRootsSection(text string) string {
+	return tomlSection(text, `[permissions.gentle-dev.workspace_roots]`)
+}
 
 // TestInjectHermesSkipsPermissions verifies that Hermes returns nil (no file written)
 // because Hermes permission format is undocumented — §14 of spec.
@@ -310,6 +349,9 @@ func TestInjectAntigravitySkipsPermissions(t *testing.T) {
 
 func TestInjectCodexWritesGentleDevPermissionsProfile(t *testing.T) {
 	home := t.TempDir()
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "linux"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
 
 	result, err := Inject(home, codexAdapter())
 	if err != nil {
@@ -347,33 +389,52 @@ func TestInjectCodexWritesGentleDevPermissionsProfile(t *testing.T) {
 		`"/nix/store" = "read"`,
 		`":tmpdir" = "write"`,
 		`":slash_tmp" = "write"`,
-		`[permissions.gentle-dev.workspace_roots]`,
-		`"~" = true`,
+		`glob_scan_max_depth = 6`,
 		`[permissions.gentle-dev.filesystem.":workspace_roots"]`,
-		`"." = "write"`,
-		`".git/**" = "write"`,
 		`"**/.env" = "deny"`,
 		`"**/.env.local" = "deny"`,
 		`"**/.env.*.local" = "deny"`,
-		`"**/.aws/credentials" = "deny"`,
-		`"**/.config/gh/hosts.yml" = "deny"`,
-		`"**/.credentials/**" = "deny"`,
-		`"**/.ssh/**" = "deny"`,
-		`"**/Library/Keychains/**" = "deny"`,
-		`"**/credentials.json" = "deny"`,
 		`"**/*.pem" = "deny"`,
 		`"**/*.key" = "deny"`,
 		`"**/secrets/**" = "deny"`,
+		`"**/.ssh/**" = "deny"`,
+		`"**/.credentials/**" = "deny"`,
+		`"**/credentials.json" = "deny"`,
+		`"**/.aws/credentials" = "deny"`,
+		`"**/.config/gh/hosts.yml" = "deny"`,
+		`[permissions.gentle-dev.workspace_roots]`,
+		`"~" = true`,
 	}
 	for _, want := range wantSubstrings {
 		if !strings.Contains(text, want) {
 			t.Fatalf("config.toml missing %q; got:\n%s", want, text)
 		}
 	}
-
-	for _, invalidGitRule := range []string{`"**/.git" = "write"`, `"**/.git/**" = "write"`, `".git" = "write"`} {
-		if strings.Contains(text, invalidGitRule) {
-			t.Fatalf("config.toml contains invalid or redundant Codex permissions git rule %q; got:\n%s", invalidGitRule, text)
+	rootFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem]`)
+	if !strings.Contains(rootFilesystem, `glob_scan_max_depth = 6`) {
+		t.Fatalf("root filesystem table missing glob_scan_max_depth; got:\n%s", rootFilesystem)
+	}
+	for _, invalidRootGlob := range []string{`"**/.env" = "deny"`, `"**/*.pem" = "deny"`, `"**/*.key" = "deny"`} {
+		if strings.Contains(rootFilesystem, invalidRootGlob) {
+			t.Fatalf("root filesystem table contains scoped secret deny %q; got:\n%s", invalidRootGlob, rootFilesystem)
+		}
+	}
+	assertCodexWorkspaceWriteRulesScoped(t, text)
+	scopedFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem.":workspace_roots"]`)
+	if scopedFilesystem == "" {
+		t.Fatalf("config.toml missing workspace-scoped filesystem table; got:\n%s", text)
+	}
+	for _, want := range []string{`"**/.env" = "deny"`, `"**/*.pem" = "deny"`, `"**/*.key" = "deny"`} {
+		if !strings.Contains(scopedFilesystem, want) {
+			t.Fatalf("workspace-scoped filesystem table missing %q; got:\n%s", want, scopedFilesystem)
+		}
+	}
+	for _, invalid := range []string{
+		`"**/.git" = "write"`,
+		`"**/.git/**" = "write"`,
+	} {
+		if strings.Contains(text, invalid) {
+			t.Fatalf("config.toml contains invalid Codex permission entry %q; got:\n%s", invalid, text)
 		}
 	}
 	if strings.Contains(text, `extends = ":workspace"`) {
@@ -408,6 +469,355 @@ func TestInjectCodexPermissionsSkipsNixStoreOnWindows(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("Windows Codex config missing non-fatal Nix home path %q; got:\n%s", want, text)
 		}
+	}
+}
+
+func TestInjectCodexPermissionsIncludesExistingLinuxbrewPrefix(t *testing.T) {
+	home := t.TempDir()
+	prefix := filepath.Join(t.TempDir(), "linuxbrew")
+	binDir := filepath.Join(prefix, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create Linuxbrew bin directory: %v", err)
+	}
+	brewPath := filepath.Join(binDir, "brew")
+	if err := os.WriteFile(brewPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatalf("create brew executable: %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	origLookPath := codexPermissionsLookPath
+	codexPermissionsGOOS = "linux"
+	codexPermissionsLookPath = func(string) (string, error) { return brewPath, nil }
+	t.Cleanup(func() {
+		codexPermissionsGOOS = origGOOS
+		codexPermissionsLookPath = origLookPath
+	})
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	if !strings.Contains(string(content), strconv.Quote(prefix)+` = "read"`) {
+		t.Fatalf("Codex config missing Linuxbrew prefix %q; got:\n%s", prefix, content)
+	}
+}
+
+func TestInjectCodexPermissionsSkipsLinuxbrewPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		goos     string
+		brewPath func(t *testing.T) string
+	}{
+		{
+			name: "brew is absent on Linux",
+			goos: "linux",
+		},
+		{
+			name: "detected prefix does not exist",
+			goos: "linux",
+			brewPath: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "missing", "bin", "brew")
+			},
+		},
+		{
+			name: "macOS remains unchanged",
+			goos: "darwin",
+			brewPath: func(t *testing.T) string {
+				prefix := t.TempDir()
+				return filepath.Join(prefix, "bin", "brew")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			brewPath := ""
+			if tt.brewPath != nil {
+				brewPath = tt.brewPath(t)
+			}
+			origGOOS := codexPermissionsGOOS
+			origLookPath := codexPermissionsLookPath
+			codexPermissionsGOOS = tt.goos
+			codexPermissionsLookPath = func(string) (string, error) {
+				if brewPath == "" {
+					return "", exec.ErrNotFound
+				}
+				return brewPath, nil
+			}
+			t.Cleanup(func() {
+				codexPermissionsGOOS = origGOOS
+				codexPermissionsLookPath = origLookPath
+			})
+
+			if _, err := Inject(home, codexAdapter()); err != nil {
+				t.Fatalf("Inject() error = %v", err)
+			}
+			content, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+			if err != nil {
+				t.Fatalf("read config.toml: %v", err)
+			}
+			if brewPath != "" {
+				prefix := filepath.Dir(filepath.Dir(brewPath))
+				if strings.Contains(string(content), strconv.Quote(prefix)+` = "read"`) {
+					t.Fatalf("Codex config unexpectedly includes Linuxbrew prefix %q; got:\n%s", prefix, content)
+				}
+			}
+		})
+	}
+}
+
+func TestInjectCodexPermissionsExcludesHomeWorkspaceRootOnWindows(t *testing.T) {
+	home := t.TempDir()
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	workspaceRoots := codexWorkspaceRootsSection(string(content))
+	if strings.Contains(workspaceRoots, `"~" = true`) {
+		t.Fatalf("Windows Codex config should not include the home workspace root; got:\n%s", workspaceRoots)
+	}
+}
+
+func TestInjectCodexPermissionsRemovesHomeWorkspaceRootOnWindows(t *testing.T) {
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	tests := []struct {
+		name         string
+		homeRoot     string
+		prefixedRoot string
+	}{
+		{name: "canonical double-quoted key", homeRoot: `"~" = true`, prefixedRoot: `"~/Documents/project" = true`},
+		{name: "single-quoted key", homeRoot: `'~' = true`, prefixedRoot: `'~/Documents/project' = true`},
+		{name: "tab before equals", homeRoot: "\"~\"\t=\ttrue", prefixedRoot: "\"~/Documents/project\"\t=\ttrue"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			configPath := filepath.Join(home, ".codex", "config.toml")
+			if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+				t.Fatalf("MkdirAll() error = %v", err)
+			}
+			initial := "[permissions.gentle-dev.workspace_roots]\n" + tt.homeRoot + "\n" + tt.prefixedRoot + "\n\n[unrelated]\n'~'\t= true\n"
+			if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+
+			if _, err := Inject(home, codexAdapter()); err != nil {
+				t.Fatalf("Inject() error = %v", err)
+			}
+
+			content, err := os.ReadFile(configPath)
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+			workspaceRoots := codexWorkspaceRootsSection(string(content))
+			if strings.Contains(workspaceRoots, tt.homeRoot) {
+				t.Fatalf("Windows Codex config still contains home workspace root %q; got:\n%s", tt.homeRoot, workspaceRoots)
+			}
+			if !strings.Contains(workspaceRoots, tt.prefixedRoot) {
+				t.Fatalf("Windows Codex config did not preserve prefixed workspace root %q; got:\n%s", tt.prefixedRoot, workspaceRoots)
+			}
+			if !strings.Contains(tomlSection(string(content), "[unrelated]"), "'~'\t= true") {
+				t.Fatalf("Windows Codex migration removed the home key from an unrelated table; got:\n%s", content)
+			}
+		})
+	}
+}
+
+func TestInjectCodexPermissionsRemovesDottedHomeWorkspaceRootOnWindows(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	initial := "permissions.\"gentle-dev\".workspace_roots.\"~\" = true\npermissions.gentle-dev.workspace_roots.\"~/project\" = true\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if strings.Contains(string(content), `workspace_roots."~" = true`) {
+		t.Fatalf("Windows Codex config still contains dotted home workspace root; got:\n%s", content)
+	}
+	if !strings.Contains(string(content), `workspace_roots."~/project" = true`) {
+		t.Fatalf("Windows Codex config did not preserve dotted prefixed workspace root; got:\n%s", content)
+	}
+}
+
+func TestInjectCodexPermissionsRecognizesQuotedWorkspaceRootsHeader(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	initial := "[permissions.\"gentle-dev\".workspace_roots]\n\"~\" = true\n\"~/project\" = true\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if strings.Contains(string(content), `"~" = true`) {
+		t.Fatalf("Windows Codex config still contains home root under quoted table header; got:\n%s", content)
+	}
+	if !strings.Contains(string(content), `"~/project" = true`) {
+		t.Fatalf("Windows Codex config did not preserve prefixed root under quoted table header; got:\n%s", content)
+	}
+}
+
+func TestInjectCodexPermissionsRecognizesWorkspaceRootsHeaderWithComment(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	initial := "[permissions.gentle-dev.workspace_roots] # managed roots\n'~' = true\n'~/project' = true\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if strings.Contains(string(content), `'~' = true`) {
+		t.Fatalf("Windows Codex config still contains home root under commented table header; got:\n%s", content)
+	}
+	if !strings.Contains(string(content), `'~/project' = true`) {
+		t.Fatalf("Windows Codex config did not preserve prefixed root under commented table header; got:\n%s", content)
+	}
+}
+
+func TestInjectCodexPermissionsStopsAtCommentedFollowingHeader(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	initial := "[permissions.gentle-dev.workspace_roots]\n\"~\" = true\n\n[unrelated] # preserve this table\n\"~\" = true\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	unrelated := tomlSection(string(content), "[unrelated] # preserve this table")
+	if !strings.Contains(unrelated, `"~" = true`) {
+		t.Fatalf("Windows Codex migration removed home key from following commented table; got:\n%s", content)
+	}
+}
+
+func TestInjectCodexPermissionsRetainsHomeWorkspaceRootOutsideWindows(t *testing.T) {
+	home := t.TempDir()
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "linux"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	if _, err := Inject(home, codexAdapter()); err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	workspaceRoots := codexWorkspaceRootsSection(string(content))
+	if !strings.Contains(workspaceRoots, `"~" = true`) {
+		t.Fatalf("non-Windows Codex config missing the home workspace root; got:\n%s", workspaceRoots)
+	}
+}
+
+func TestInjectCodexPermissionsWindowsWorkspaceRootMigrationIsIdempotent(t *testing.T) {
+	home := t.TempDir()
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	initial := "[permissions.gentle-dev.workspace_roots]\n'~'\t=\ttrue\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	origGOOS := codexPermissionsGOOS
+	codexPermissionsGOOS = "windows"
+	t.Cleanup(func() { codexPermissionsGOOS = origGOOS })
+
+	first, err := Inject(home, codexAdapter())
+	if err != nil {
+		t.Fatalf("Inject() first error = %v", err)
+	}
+	if !first.Changed {
+		t.Fatal("Inject() first changed = false")
+	}
+	firstContent, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() first error = %v", err)
+	}
+
+	second, err := Inject(home, codexAdapter())
+	if err != nil {
+		t.Fatalf("Inject() second error = %v", err)
+	}
+	if second.Changed {
+		t.Fatal("Inject() second changed = true")
+	}
+	secondContent, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("ReadFile() second error = %v", err)
+	}
+	if string(firstContent) != string(secondContent) {
+		t.Fatalf("Windows Codex workspace root migration is not idempotent:\nfirst:\n%s\nsecond:\n%s", firstContent, secondContent)
 	}
 }
 
@@ -448,6 +858,9 @@ func TestInjectCodexPermissionsProfileIsIdempotent(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	initial := `model = "gpt-5.5"
+
+[permissions.gentle-dev]
+glob_scan_max_depth = 6
 
 [mcp_servers.engram]
 command = "engram"
@@ -493,25 +906,41 @@ args = ["mcp", "--tools=agent"]
 	for _, section := range []string{
 		"[permissions.gentle-dev]",
 		"[permissions.gentle-dev.filesystem]",
+		`[permissions.gentle-dev.filesystem.":workspace_roots"]`,
 		"[permissions.gentle-dev.network]",
 		"[permissions.gentle-dev.network.domains]",
 		"[permissions.gentle-dev.workspace_roots]",
-		`[permissions.gentle-dev.filesystem.":workspace_roots"]`,
 	} {
 		if count := strings.Count(text, section); count != 1 {
 			t.Fatalf("section %q count = %d, want 1; got:\n%s", section, count, text)
 		}
 	}
+	rootFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem]`)
+	for _, invalid := range []string{`"**/*.key" = "deny"`, `"**/*.pem" = "deny"`} {
+		if strings.Contains(rootFilesystem, invalid) {
+			t.Fatalf("root filesystem table should not contain invalid/stale entry %q; got:\n%s", invalid, rootFilesystem)
+		}
+	}
+	for _, want := range []string{`":tmpdir" = "write"`, `":slash_tmp" = "write"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config.toml missing compatible Codex permission entry %q; got:\n%s", want, text)
+		}
+	}
+	assertCodexWorkspaceWriteRulesScoped(t, text)
 }
 
-func TestInjectCodexPermissionsRemovesInvalidGitWriteRules(t *testing.T) {
+func TestInjectCodexPermissionsRelocatesSecretDeniesToWorkspaceRootsTable(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(home, ".codex", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 
-	initial := `[permissions.gentle-dev.filesystem.":workspace_roots"]
+	initial := `[permissions.gentle-dev.filesystem]
+"**/*.key" = "deny"
+"**/*.pem" = "deny"
+
+[permissions.gentle-dev.filesystem.":workspace_roots"]
 "**/.git" = "write"
 "**/.git/**" = "write"
 "**/.env" = "deny"
@@ -535,36 +964,30 @@ func TestInjectCodexPermissionsRemovesInvalidGitWriteRules(t *testing.T) {
 	}
 	text := string(content)
 
-	if !strings.Contains(text, `".git/**" = "write"`) {
-		t.Fatalf("config.toml missing valid git write rule; got:\n%s", text)
-	}
-	for _, invalidGitRule := range []string{`"**/.git" = "write"`, `"**/.git/**" = "write"`} {
-		if strings.Contains(text, invalidGitRule) {
-			t.Fatalf("config.toml still contains invalid git write rule %q; got:\n%s", invalidGitRule, text)
+	rootFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem]`)
+	for _, invalid := range []string{`"**/*.key" = "deny"`, `"**/*.pem" = "deny"`} {
+		if strings.Contains(rootFilesystem, invalid) {
+			t.Fatalf("root filesystem table still contains stale secret deny %q; got:\n%s", invalid, rootFilesystem)
 		}
 	}
 
-	for _, denyRule := range []string{
-		`"**/.env" = "deny"`,
-		`"**/.env.local" = "deny"`,
-		`"**/.env.*.local" = "deny"`,
-		`"**/.aws/credentials" = "deny"`,
-		`"**/.config/gh/hosts.yml" = "deny"`,
-		`"**/.credentials/**" = "deny"`,
-		`"**/.ssh/**" = "deny"`,
-		`"**/Library/Keychains/**" = "deny"`,
-		`"**/credentials.json" = "deny"`,
-		`"**/*.pem" = "deny"`,
-		`"**/*.key" = "deny"`,
-		`"**/secrets/**" = "deny"`,
-	} {
-		if strings.Count(text, denyRule) != 1 {
-			t.Fatalf("config.toml should preserve deny rule %q exactly once; got:\n%s", denyRule, text)
+	scopedFilesystem := tomlSection(text, `[permissions.gentle-dev.filesystem.":workspace_roots"]`)
+	if scopedFilesystem == "" {
+		t.Fatalf("config.toml should keep workspace-scoped table for secret denies; got:\n%s", text)
+	}
+	for _, want := range []string{`"**/.env" = "deny"`, `"**/*.key" = "deny"`, `"**/*.pem" = "deny"`} {
+		if !strings.Contains(scopedFilesystem, want) {
+			t.Fatalf("workspace-scoped table missing relocated secret deny %q; got:\n%s", want, scopedFilesystem)
+		}
+	}
+	for _, invalid := range []string{`"**/.git" = "write"`, `"**/.git/**" = "write"`} {
+		if strings.Contains(text, invalid) {
+			t.Fatalf("config.toml still contains invalid git write rule %q; got:\n%s", invalid, text)
 		}
 	}
 }
 
-func TestInjectCodexPermissionsRemovesObsoleteBroadEnvDenyRules(t *testing.T) {
+func TestInjectCodexPermissionsRemovesObsoleteWorkspaceRootDenyRules(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(home, ".codex", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
@@ -592,14 +1015,12 @@ func TestInjectCodexPermissionsRemovesObsoleteBroadEnvDenyRules(t *testing.T) {
 	}
 	text := string(content)
 
-	for _, obsolete := range []string{`"**/.env.*" = "deny"`, `"*.env.*" = "deny"`} {
+	for _, obsolete := range []string{
+		`"**/.env.*" = "deny"`,
+		`"*.env.*" = "deny"`,
+	} {
 		if strings.Contains(text, obsolete) {
-			t.Fatalf("config.toml still contains obsolete broad env deny rule %q; got:\n%s", obsolete, text)
-		}
-	}
-	for _, current := range []string{`"**/.env" = "deny"`, `"**/.env.local" = "deny"`, `"**/.env.*.local" = "deny"`} {
-		if strings.Count(text, current) != 1 {
-			t.Fatalf("config.toml should preserve current env deny rule %q exactly once; got:\n%s", current, text)
+			t.Fatalf("config.toml still contains obsolete workspace root deny entry %q; got:\n%s", obsolete, text)
 		}
 	}
 }
