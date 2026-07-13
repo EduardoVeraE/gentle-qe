@@ -54,7 +54,7 @@ func renderPresetPlan(plan planner.ResolvedPlan, selection model.Selection, curs
 
 		for idx, component := range plan.OrderedComponents {
 			num := styles.SubtextStyle.Render(fmt.Sprintf("%d.", idx+1))
-			name := styles.UnselectedStyle.Render(string(component))
+			name := styles.UnselectedStyle.Render(qeComponentLabel(component)) // (ancla qe-overlay)
 			note := styles.SuccessStyle.Render("included")
 			if _, isAuto := autoSet[component]; isAuto {
 				note = styles.WarningStyle.Render("auto-dependency")

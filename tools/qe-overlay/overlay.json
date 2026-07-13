@@ -17,6 +17,7 @@
     "internal/components/persona/inject_qe.go",
     "internal/tui/screens/preset_qe.go",
     "internal/tui/screens/persona_qe.go",
+    "internal/tui/screens/component_label_qe.go",
     "internal/tui/styles/logo_qe.go",
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
@@ -126,6 +127,14 @@
     {
       "file": "internal/tui/screens/persona.go",
       "mustContain": "qePersonaOptionsForBuild"
+    },
+    {
+      "file": "internal/tui/screens/dependency_tree.go",
+      "mustContain": "qeComponentLabel(component)"
+    },
+    {
+      "file": "internal/tui/screens/review.go",
+      "mustContain": "qeComponentLabel(comp.ID)"
     },
     {
       "file": "internal/tui/screens/welcome.go",

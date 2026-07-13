@@ -36,7 +36,7 @@ func RenderReview(payload planner.ReviewPayload, cursor int) string {
 			if _, isAuto := autoSet[comp.ID]; isAuto {
 				badge = styles.WarningStyle.Render("auto-dependency")
 			}
-			b.WriteString("  " + styles.UnselectedStyle.Render(string(comp.ID)) + " " + badge + "\n")
+			b.WriteString("  " + styles.UnselectedStyle.Render(qeComponentLabel(comp.ID)) + " " + badge + "\n") // (ancla qe-overlay)
 		}
 
 		// Issue #145: show individual skill names when the Skills component is selected.
