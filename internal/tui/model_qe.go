@@ -1,6 +1,11 @@
 package tui
 
-import "github.com/gentleman-programming/gentle-ai/internal/model"
+import (
+	"fmt"
+
+	"github.com/gentleman-programming/gentle-ai/internal/model"
+	"github.com/gentleman-programming/gentle-ai/internal/tui/screens"
+)
 
 // model_qe.go — Gentle-QE installer flow simplification overlay (package tui).
 //
@@ -54,46 +59,73 @@ func qeSuppressOpenCodePlugins() bool {
 // qeWelcomeCanonicalCursor remaps a collapsed Welcome menu cursor position
 // (0..6, the 7 QE-essential entries returned by qeWelcomeOptions) to the
 // canonical index the untouched upstream confirmSelection ScreenWelcome
-// switch expects. It replays the SAME conditional counter that switch uses,
-// stepping both non-uniform gaps documented in design.md:
+// switch expects.
 //
-//	collapsed 0..3           -> canonical == collapsed (static leaders)
-//	base := 8 (9 if hasDetectedOpenCode(), +1 for the OpenCode SDD Profiles
-//	           leader-gap entry). The extra +1 versus the OpenCodePlugins
-//	           install shortcut (cursor 6) accounts for the OpenCode plugin
-//	           uninstall standalone leader-gap entry (cursor 7, "Slice 3b")
-//	           the upstream inserted between the install shortcut and
-//	           Profiles/Backups.
-//	collapsed 4 (Backups)    -> base
-//	collapsed 5 (Uninstall)  -> base + 1
-//	collapsed 6 (Quit)       -> base + 3 (tail gap: skips CommunityTools at
-//	                            base+2)
+// Root-cause fix for the historical arithmetic bug (base 7->8 across the
+// upstream v2.x sync; gentle-qe-cwd hardens this): instead of replaying a
+// hand-derived offset table that silently drifts whenever upstream reorders,
+// inserts, or removes a Welcome menu entry, this looks the collapsed
+// cursor's LABEL up in the real, live, uncollapsed upstream menu
+// (screens.QEWelcomeFullOptions — sourced from the exact opts slice
+// WelcomeOptions() builds, via the capture anchor in welcome.go, NOT a
+// second hardcoded copy of upstream's order). The canonical index is
+// recomputed from upstream's actual current menu on every call, so it can
+// never go stale the way a cached offset can.
 //
-// MUST stay in sync with len(qeWelcomeOptions(...)) == 7 — see the
-// structural fail-fast test in welcome_qe_test.go. Any future change to the
-// collapsed keep-set that is not reflected here must fail loudly, not
-// silently mis-route a menu action.
+// Both failure modes fail LOUDLY (panic) per design.md's original intent —
+// "must fail loudly, not silently mis-route a menu action" — which the prior
+// arithmetic's `default: return collapsed` branch contradicted (it silently
+// passed an out-of-range cursor through unchanged):
+//
+//   - collapsed is outside qeWelcomeOptions' output for these inputs: the
+//     collapse keep-set and the live Welcome menu have desynced.
+//   - the collapsed entry's label has no match in the full upstream menu:
+//     upstream renamed or removed an entry qeWelcomeOptions still keeps.
+//
+// A collapsed cursor is used, not stored, on the same synchronous
+// confirmSelection() call it is produced for, so panicking here surfaces the
+// drift at the exact keypress that would otherwise have misrouted — long
+// before it could reach a release.
 func qeWelcomeCanonicalCursor(m Model, collapsed int) int {
 	if !model.QEInstallerFlow {
 		return collapsed
 	}
-	if collapsed < 4 {
-		return collapsed
-	}
 
-	base := 8
-	if m.hasDetectedOpenCode() {
-		base = 9
-	}
+	showProfiles := m.hasDetectedOpenCode()
+	profileCount := len(m.ProfileList)
+	hasEngines := m.hasAgentBuilderEngines()
 
-	switch collapsed {
-	case 4: // Manage backups
-		return base
-	case 5: // Managed uninstall
-		return base + 1
-	case 6: // Quit — steps over the tail gap (CommunityTools at base+2)
-		return base + 3
-	default:
-		return collapsed
+	collapsedOpts := screens.WelcomeOptions(m.UpdateResults, m.UpdateCheckDone, showProfiles, profileCount, hasEngines)
+	if collapsed < 0 || collapsed >= len(collapsedOpts) {
+		panic(fmt.Sprintf(
+			"qeWelcomeCanonicalCursor: collapsed cursor %d out of range [0,%d) for the QE-collapsed Welcome menu %v — qeWelcomeOptions' keep-set and the live Welcome menu have diverged",
+			collapsed, len(collapsedOpts), collapsedOpts))
 	}
+	label := collapsedOpts[collapsed]
+
+	full := screens.QEWelcomeFullOptions(m.UpdateResults, m.UpdateCheckDone, showProfiles, profileCount, hasEngines)
+	canonical, ok := qeCanonicalIndexForLabel(full, label)
+	if !ok {
+		panic(fmt.Sprintf(
+			"qeWelcomeCanonicalCursor: collapsed entry %q (collapsed cursor %d) not found in the upstream Welcome menu %v — upstream likely renamed or removed a QE-kept entry; update qeWelcomeOptions' keep-set (welcome_qe.go)",
+			label, collapsed, full))
+	}
+	return canonical
+}
+
+// qeCanonicalIndexForLabel finds label's position in full — the real,
+// current upstream Welcome menu — by CONTENT, never by position. This is the
+// entire mechanism that makes qeWelcomeCanonicalCursor immune to upstream
+// reordering or insertion: reorder full and the same label still resolves to
+// its new position, instead of a stale offset pointing at whatever now sits
+// there. Pulled out as its own pure function so that property is directly
+// testable without driving the full Bubbletea Update() loop — see
+// TestQECanonicalIndexForLabel_SurvivesUpstreamReorder in model_qe_test.go.
+func qeCanonicalIndexForLabel(full []string, label string) (int, bool) {
+	for idx, opt := range full {
+		if opt == label {
+			return idx, true
+		}
+	}
+	return -1, false
 }

@@ -132,6 +132,10 @@
       "mustContain": "qeWelcomeOptions"
     },
     {
+      "file": "internal/tui/screens/welcome.go",
+      "mustContain": "qeCaptureFullWelcomeOptions"
+    },
+    {
       "file": "internal/tui/model.go",
       "mustContain": "model.PresetQESDET"
     },
