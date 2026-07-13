@@ -29,10 +29,20 @@
 //	                                        Detalle de la heurística: diff.go.
 //	go run ./tools/qe-overlay accept        Absorbe el drift detectado actualizando el
 //	                                        manifiesto (known upstream skills).
+//	go run ./tools/qe-overlay apply         Ayuda a RE-APLICAR anclas perdidas tras un
+//	                                        merge: busca en el historial de git la
+//	                                        última línea de ancla conocida-buena y su
+//	                                        contexto, y la muestra para reinsertarla a
+//	                                        mano. Detalle: apply.go.
+//	go run ./tools/qe-overlay apply --write Además intenta una reinserción automática,
+//	                                        pero solo cuando el punto de inserción es
+//	                                        inambiguo (contexto único); si no, cae al
+//	                                        reporte guiado para esa ancla.
 //
 // No tiene dependencias externas: lee tools/qe-overlay/overlay.json con la stdlib.
-// El modo `diff` sí invoca el binario `git` (merge-base/diff/cat-file) vía os/exec.
-// Está pensado para correrse desde la raíz del repo (donde está go.mod).
+// Los modos `diff` y `apply` sí invocan el binario `git` (merge-base/diff/cat-file/
+// log/show) vía os/exec. Está pensado para correrse desde la raíz del repo (donde
+// está go.mod).
 package main
 
 import (
@@ -72,7 +82,7 @@ type manifest struct {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "uso: qe-overlay <verify [--diff]|diff|accept>")
+		fmt.Fprintln(os.Stderr, "uso: qe-overlay <verify [--diff]|diff|accept|apply [--write]>")
 		os.Exit(2)
 	}
 
@@ -95,8 +105,11 @@ func main() {
 		os.Exit(runDiff(m))
 	case "accept":
 		os.Exit(runAccept(m))
+	case "apply":
+		write := len(os.Args) > 2 && os.Args[2] == "--write"
+		os.Exit(runApply(m, write))
 	default:
-		fmt.Fprintf(os.Stderr, "modo desconocido %q (usa verify|diff|accept)\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "modo desconocido %q (usa verify|diff|accept|apply)\n", os.Args[1])
 		os.Exit(2)
 	}
 }
