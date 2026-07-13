@@ -36,6 +36,8 @@ go run ./tools/qe-overlay verify         # ¿overlay intacto? ¿drift del upstre
 go run ./tools/qe-overlay verify --diff  # verify + diff real (ver abajo)
 go run ./tools/qe-overlay diff           # solo el diff real contra el baseline upstream
 go run ./tools/qe-overlay accept         # absorbe skills nuevos del upstream al manifiesto
+go run ./tools/qe-overlay apply          # guía para re-aplicar anclas perdidas (ver abajo)
+go run ./tools/qe-overlay apply --write  # + reinserción automática en el caso inambiguo
 ```
 
 `verify` (exit ≠ 0 si hay problemas) chequea: directorios net-new presentes,
@@ -79,19 +81,61 @@ línea de ancla legítima, dentro del mismo hunk, no se detectaría. Ver
 El manifiesto `overlay.json` es la **fuente de verdad** del overlay: edítalo cuando
 agregues un skill QA, un nuevo archivo `_qe.go` o un nuevo punto de anclaje.
 
+### `apply` — ayuda a re-aplicar anclas perdidas (implementación: `apply.go`)
+
+Durante un sync, un conflicto de merge en un archivo upstream editado por el overlay
+puede resolverse a favor del upstream y **perder una línea de ancla** (inline o de
+branding). `verify` DETECTA esto (`mustContain` ausente) pero no ayuda a restaurarlo.
+`apply` sí:
+
+- Para cada ancla perdida, busca en el historial de git del fork (`git log -S<mustContain>`)
+  el último commit donde esa línea todavía existía, y muestra esa línea + su contexto
+  inmediato (3 líneas antes/después) para que un humano la ubique y reinserte en segundos.
+- Con `--write`, además intenta una **reinserción automática conservadora**: solo cuando
+  la línea inmediatamente anterior (en el historial) es sustantiva y aparece **exacta y
+  únicamente una vez** en el archivo actual, inserta la línea de ancla justo después. Si el
+  punto de inserción es ambiguo (0 o 2+ matches) o la línea de contexto es trivial (`}`,
+  `)`, blancos), no escribe nada y cae al reporte guiado para esa ancla — nunca adivina.
+
+**Por qué no hay reinserción 100% automática**: el manifiesto solo guarda
+`{file, mustContain}` — el símbolo que debe existir, no la línea completa ni su punto de
+inserción exacto. Reconstruir ambos de forma confiable en el caso general (múltiples
+apariciones de la línea de contexto, refactors del upstream que mueven la función, etc.)
+no es factible con esa metadata sin arriesgar una reinserción en el lugar equivocado —
+peor que no reinsertar nada. `apply --write` cubre el caso común y seguro (contexto único);
+todo lo demás queda en el reporte guiado, que sigue siendo mucho más rápido que buscar a
+mano en `git log`.
+
+Exit code: `0` si no hay nada que restaurar, o si `--write` restauró todo lo que había.
+`1` si queda al menos un ancla sin restaurar (reporte guiado impreso, requiere acción
+manual). Igual que `diff`, requiere el historial de git local (no un remote específico:
+busca en cualquier commit alcanzable desde donde se corre, típicamente `HEAD`).
+
+```bash
+go run ./tools/qe-overlay apply
+go run ./tools/qe-overlay apply --write
+go build ./... && go run ./tools/qe-overlay verify   # confirmar tras --write
+```
+
 ## Runbook de sync (cada release menor del upstream)
+
+> Runbook completo y canónico (cadencia, gotchas, manejo de bugs upstream,
+> checklist): [`docs/qe-upstream-sync.md`](../../docs/qe-upstream-sync.md).
+> Resumen operativo:
 
 ```bash
 # Una sola vez por clon: habilitar el driver merge=ours del .gitattributes
 git config merge.ours.driver true
 
-git fetch upstream --tags
+# --no-tags es CRÍTICO: el fork limpió los ~236 tags heredados del upstream;
+# sin --no-tags se re-traen. Solo necesitamos la rama main.
+git fetch --no-tags upstream main
 git checkout -b sync/vX.Y.Z main
 git merge upstream/main            # README/.goreleaser/install.sh => merge=ours auto
 
 go run ./tools/qe-overlay verify   # reporta overlay roto / branding drift / skills nuevos
-#   - delegación inline perdida  -> re-aplicar la línea marcada `ancla qe-overlay`
-#   - branding perdido           -> apuntar el sitio a branding.*
+#   - delegación inline perdida  -> `go run ./tools/qe-overlay apply` (guía o --write)
+#   - branding perdido           -> apuntar el sitio a branding.* (`apply` también ayuda)
 #   - skill nuevo del upstream   -> decidir si va a un preset QE, luego `accept`
 
 go build ./...
