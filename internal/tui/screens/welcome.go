@@ -68,6 +68,7 @@ func WelcomeOptions(updateResults []update.UpdateResult, updateCheckDone bool, s
 	opts = append(opts, "Community Tools/Plugins")
 	opts = append(opts, "Quit")
 
+	qeCaptureFullWelcomeOptions(opts)                       // overlay Gentle-QE (ancla qe-overlay)
 	return qeWelcomeOptions(opts, showProfiles, hasEngines) // overlay Gentle-QE (ancla qe-overlay)
 }
 

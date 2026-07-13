@@ -93,6 +93,89 @@ func qeModelWithOpenCodeDetection(detected bool) Model {
 	return m
 }
 
+// TestQECanonicalIndexForLabel_SurvivesUpstreamReorder is the direct proof
+// that the reverse-label-lookup mechanism is immune to the class of bug
+// qeWelcomeCanonicalCursor used to have: a stale hardcoded offset silently
+// mis-routing after an upstream reorder/insert (the historical base 7->8
+// sync bug this change hardens against). It feeds qeCanonicalIndexForLabel
+// two DIFFERENT orderings of the same labels — simulating "before" and
+// "after upstream reordered its menu" — and asserts every label resolves to
+// its CURRENT position in whichever list is passed in, never a stale one.
+func TestQECanonicalIndexForLabel_SurvivesUpstreamReorder(t *testing.T) {
+	before := []string{"Start installation", "Sync configs", "Manage backups", "Managed uninstall", "Quit"}
+	// "after": upstream inserted a new entry up front AND moved Quit from
+	// last to first — the exact shape of drift that broke the old arithmetic.
+	after := []string{"Quit", "A Brand New Upstream Entry", "Start installation", "Sync configs", "Manage backups", "Managed uninstall"}
+
+	wantAfter := map[string]int{
+		"Start installation": 2,
+		"Sync configs":       3,
+		"Manage backups":     4,
+		"Managed uninstall":  5,
+		"Quit":               0,
+	}
+
+	for _, label := range before {
+		beforeIdx, ok := qeCanonicalIndexForLabel(before, label)
+		if !ok {
+			t.Fatalf("qeCanonicalIndexForLabel(before, %q) not found", label)
+		}
+		afterIdx, ok := qeCanonicalIndexForLabel(after, label)
+		if !ok {
+			t.Fatalf("qeCanonicalIndexForLabel(after, %q) not found", label)
+		}
+		if afterIdx != wantAfter[label] {
+			t.Fatalf("qeCanonicalIndexForLabel(after, %q) = %d, want %d (its real position in the reordered list)", label, afterIdx, wantAfter[label])
+		}
+		// The point: the lookup tracks CONTENT, not a cached offset, so the
+		// index legitimately differs across the two orderings for a label
+		// whose position moved (e.g. "Quit": last in before, first in after).
+		if label == "Quit" && beforeIdx == afterIdx {
+			t.Fatalf("qeCanonicalIndexForLabel(%q) returned the same index (%d) in both orderings; test fixture did not actually move it", label, beforeIdx)
+		}
+	}
+}
+
+// TestQECanonicalIndexForLabel_NotFound documents the fail-loud contract at
+// the pure-function level: a label absent from the upstream list must report
+// ok=false, never a fabricated index.
+func TestQECanonicalIndexForLabel_NotFound(t *testing.T) {
+	_, ok := qeCanonicalIndexForLabel([]string{"A", "B"}, "C")
+	if ok {
+		t.Fatal("qeCanonicalIndexForLabel(missing label) ok = true, want false")
+	}
+}
+
+// TestQEWelcomeCanonicalCursor_PanicsOnOutOfRangeCollapsedCursor asserts the
+// fail-loud contract design.md always intended: an out-of-range collapsed
+// cursor must panic, not silently pass through unchanged (the bug in the
+// prior arithmetic's `default: return collapsed` branch).
+func TestQEWelcomeCanonicalCursor_PanicsOnOutOfRangeCollapsedCursor(t *testing.T) {
+	enableQESeam(t)
+	m := qeModelWithOpenCodeDetection(false)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("qeWelcomeCanonicalCursor(collapsed=99) did not panic, want a fail-loud panic on an out-of-range collapsed cursor")
+		}
+	}()
+	qeWelcomeCanonicalCursor(m, 99)
+}
+
+// TestQEWelcomeCanonicalCursor_PanicsOnNegativeCollapsedCursor triangulates
+// with the above at the other boundary.
+func TestQEWelcomeCanonicalCursor_PanicsOnNegativeCollapsedCursor(t *testing.T) {
+	enableQESeam(t)
+	m := qeModelWithOpenCodeDetection(false)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("qeWelcomeCanonicalCursor(collapsed=-1) did not panic, want a fail-loud panic on a negative collapsed cursor")
+		}
+	}()
+	qeWelcomeCanonicalCursor(m, -1)
+}
+
 // ─── qeFilterPickerFlow ──────────────────────────────────────────────────────
 
 // TestQEFilterPickerFlow_ExcludesDevOnlyScreens feeds qeFilterPickerFlow a
