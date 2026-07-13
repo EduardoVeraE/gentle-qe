@@ -58,8 +58,12 @@ func qeSuppressOpenCodePlugins() bool {
 // stepping both non-uniform gaps documented in design.md:
 //
 //	collapsed 0..3           -> canonical == collapsed (static leaders)
-//	base := 7 (8 if hasDetectedOpenCode(), +1 for the OpenCode SDD Profiles
-//	           leader-gap entry)
+//	base := 8 (9 if hasDetectedOpenCode(), +1 for the OpenCode SDD Profiles
+//	           leader-gap entry). The extra +1 versus the OpenCodePlugins
+//	           install shortcut (cursor 6) accounts for the OpenCode plugin
+//	           uninstall standalone leader-gap entry (cursor 7, "Slice 3b")
+//	           the upstream inserted between the install shortcut and
+//	           Profiles/Backups.
 //	collapsed 4 (Backups)    -> base
 //	collapsed 5 (Uninstall)  -> base + 1
 //	collapsed 6 (Quit)       -> base + 3 (tail gap: skips CommunityTools at
@@ -77,9 +81,9 @@ func qeWelcomeCanonicalCursor(m Model, collapsed int) int {
 		return collapsed
 	}
 
-	base := 7
+	base := 8
 	if m.hasDetectedOpenCode() {
-		base = 8
+		base = 9
 	}
 
 	switch collapsed {

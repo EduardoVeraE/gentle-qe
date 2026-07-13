@@ -21,6 +21,7 @@ import (
 	windsurfagent "github.com/gentleman-programming/gentle-ai/internal/agents/windsurf"
 	"github.com/gentleman-programming/gentle-ai/internal/assets"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
+	opencodemodel "github.com/gentleman-programming/gentle-ai/internal/opencode"
 	// agents/cursor, agents/gemini, agents/vscode used via agents.NewAdapter()
 )
 
@@ -632,15 +633,21 @@ func TestInjectOpenCodePreservesExistingOrchestratorPromptWhenRequested(t *testi
 	for _, wanted := range []string{
 		"### SDD Session Preflight (HARD GATE)",
 		"### Mandatory Delegation Triggers (Non-Skippable)",
-		"TOTALMENTE obligatorio",
+		"fully mandatory",
 		"Semantic guard",
 		"execution, not delegation",
 		"not a substitute for delegation",
-		"run the concrete review lens(es) selected by Review Lens Selection",
-		"run the concrete audit/review lens(es) selected by Review Lens Selection",
-		"use fresh context with the selected concrete review lens(es)",
+		"Lifecycle receipt rule",
+		"validate the same content-bound receipt",
+		"generated-artifact, and provenance targets remain immutable",
+		"fresh adversarial lenses run only inside one explicit",
 		"#### Review Lens Selection",
 		"`reviewer` is an intent, not a concrete installed agent",
+		"triage the diff deterministically",
+		"**Trivial diff**",
+		"zero executable code and zero configuration changes",
+		"run exactly ONE lens",
+		"Full 4R is reserved for tier 3",
 		"`review-readability`",
 		"`review-reliability`",
 		"`review-resilience`",
@@ -654,6 +661,10 @@ func TestInjectOpenCodePreservesExistingOrchestratorPromptWhenRequested(t *testi
 		"run a fresh-context review unless the diff is trivial docs/text",
 		"run a fresh audit before continuing",
 		"use fresh context for adversarial review of diffs",
+		"select concrete lenses by risk profile",
+		"Large PR, hot path, or >400 changed lines",
+		"small mechanical changes",
+		"trivial docs/text",
 	} {
 		if strings.Contains(text, stale) {
 			t.Fatalf("opencode.json retained stale generic review routing %q", stale)
@@ -701,6 +712,8 @@ func TestInjectOpenCodeMigratesPreservedLegacyOrchestratorPromptReferences(t *te
 		"run a fresh-context review unless the diff is trivial docs/text",
 		"run a fresh audit before continuing",
 		"use fresh context for adversarial review of diffs",
+		"trivial docs/text",
+		"small mechanical changes",
 	} {
 		if strings.Contains(text, unwanted) {
 			t.Fatalf("opencode.json still contains stale preserved prompt reference %q", unwanted)
@@ -732,10 +745,10 @@ func TestInjectOpenCodeMigratesPreservedLegacyOrchestratorPromptReferences(t *te
 		"business rules, implications, impact, edge cases",
 		"Never launch `sdd-apply` just because the user asked to implement a feature",
 		"### Mandatory Delegation Triggers (Non-Skippable)",
-		"TOTALMENTE obligatorio",
+		"fully mandatory",
 		"4-file rule",
 		"Multi-file write rule",
-		"PR rule",
+		"Lifecycle receipt rule",
 		"Incident rule",
 		"Long-session rule",
 		"Fresh review rule",
@@ -743,9 +756,14 @@ func TestInjectOpenCodeMigratesPreservedLegacyOrchestratorPromptReferences(t *te
 		"execution, not delegation",
 		"not a substitute for delegation",
 		"run the concrete review lens(es) selected by Review Lens Selection",
-		"run the concrete audit/review lens(es) selected by Review Lens Selection",
-		"use fresh context with the selected concrete review lens(es)",
+		"generated-artifact, and provenance targets remain immutable",
+		"fresh adversarial lenses run only inside one explicit",
 		"#### Review Lens Selection",
+		"triage the diff deterministically",
+		"**Trivial diff**",
+		"zero executable code and zero configuration changes",
+		"run exactly ONE lens",
+		"Full 4R is reserved for tier 3",
 		"`review-readability`",
 		"`review-reliability`",
 		"`review-resilience`",
@@ -754,6 +772,217 @@ func TestInjectOpenCodeMigratesPreservedLegacyOrchestratorPromptReferences(t *te
 		if !strings.Contains(text, wanted) {
 			t.Fatalf("opencode.json missing migrated preserved prompt reference %q", wanted)
 		}
+	}
+}
+
+// A preserved prompt that already carries the v1 delegation-hard-gates
+// migration block (with the v1 advisory lens-selection table) must be
+// upgraded in place to the v2 deterministic triage router.
+func TestInjectOpenCodeUpgradesV1DelegationLensTable(t *testing.T) {
+	home := t.TempDir()
+	mockNoPackageManager(t)
+
+	settingsPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(settings dir) error = %v", err)
+	}
+
+	const userContent = "CUSTOM_PROMPT_HEAD\nUser-authored wording must remain " + legacyMandatoryWording + "."
+	const v1Block = userContent + "\n\n" +
+		"<!-- gentle-ai:delegation-hard-gates-migration -->\n" +
+		"### Mandatory Delegation Triggers (Non-Skippable)\n\n" +
+		"These gates are non-skippable hard gates, not recommendations. They are " + legacyMandatoryWording + ": do not skip them.\n\n" +
+		"Semantic guard: delegate means using OpenCode's native Task tool. Running local scripts is execution, not delegation.\n\n" +
+		"1. **4-file rule**: delegate.\n" +
+		"2. **Multi-file write rule**: a fresh review is required after delegated implementation, not a substitute for delegation.\n" +
+		"3. **PR rule**: run the concrete review lens(es) selected by Review Lens Selection unless the diff is trivial docs/text.\n" +
+		"4. **Incident rule**: stop and run the concrete audit/review lens(es) selected by Review Lens Selection before continuing.\n" +
+		"5. **Long-session rule**: pause and delegate.\n" +
+		"6. **Fresh review rule**: use fresh context with the selected concrete review lens(es) for adversarial review.\n\n" +
+		"#### Review Lens Selection\n\n" +
+		"`reviewer` is an intent, not a concrete installed agent. When a fresh review/audit is required, select concrete lenses by risk profile:\n\n" +
+		"| Risk signal | Review lens |\n" +
+		"| --- | --- |\n" +
+		"| Clear naming, structure, maintainability, or small refactors | `review-readability` |\n" +
+		"| Behavior, state, tests, determinism, or regressions | `review-reliability` |\n" +
+		"| Shell/process integration, partial failures, recovery, or degraded dependencies | `review-resilience` |\n" +
+		"| Security, permissions, data exposure/loss, architecture, or dependencies | `review-risk` |\n" +
+		"| Large PR, hot path, or >400 changed lines | full 4R: `review-risk`, `review-resilience`, `review-readability`, `review-reliability` |\n\n" +
+		"If multiple rows match, run the narrow set that covers the risk.\n" +
+		"<!-- /gentle-ai:delegation-hard-gates-migration -->\n"
+	seed := `{
+  "agent": {
+    "gentle-orchestrator": {
+      "mode": "primary",
+      "prompt": ` + strconv.Quote(v1Block) + `
+    }
+  }
+}`
+	if err := os.WriteFile(settingsPath, []byte(seed), 0o644); err != nil {
+		t.Fatalf("WriteFile(opencode.json) error = %v", err)
+	}
+
+	_, err := Inject(home, opencodeAdapter(), model.SDDModeMulti, InjectOptions{
+		PreserveOpenCodeOrchestratorPrompt: true,
+	})
+	if err != nil {
+		t.Fatalf("Inject() error = %v", err)
+	}
+
+	settingsBytes, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("ReadFile(opencode.json) error = %v", err)
+	}
+	text := string(settingsBytes)
+
+	var settings struct {
+		Agent map[string]struct {
+			Prompt string `json:"prompt"`
+		} `json:"agent"`
+	}
+	if err := json.Unmarshal(settingsBytes, &settings); err != nil {
+		t.Fatalf("Unmarshal(opencode.json) error = %v", err)
+	}
+	prompt := settings.Agent["gentle-orchestrator"].Prompt
+	if !strings.HasPrefix(prompt, userContent+"\n\n") {
+		t.Fatalf("user-authored content outside the migration block changed:\n%s", prompt)
+	}
+	for _, wanted := range []string{
+		"fully mandatory",
+		"triage the diff deterministically",
+		"**Trivial diff**",
+		"zero executable code and zero configuration changes",
+		"Lifecycle receipt rule",
+		"validate the same content-bound receipt",
+		"run exactly ONE lens",
+		"Full 4R is reserved for tier 3",
+	} {
+		if !strings.Contains(text, wanted) {
+			t.Fatalf("opencode.json missing v2 triage fragment %q after migration", wanted)
+		}
+	}
+	for _, stale := range []string{
+		"select concrete lenses by risk profile",
+		"Large PR, hot path, or >400 changed lines",
+		"run the narrow set that covers the risk",
+		"small mechanical changes",
+		"trivial docs/text",
+	} {
+		if strings.Contains(text, stale) {
+			t.Fatalf("opencode.json retained stale v1 lens-selection text %q", stale)
+		}
+	}
+	managedStart := strings.Index(prompt, "<!-- gentle-ai:delegation-hard-gates-migration -->")
+	managedEnd := strings.Index(prompt, "<!-- /gentle-ai:delegation-hard-gates-migration -->")
+	if managedStart < 0 || managedEnd < managedStart {
+		t.Fatal("opencode.json missing delegation hard-gates migration block")
+	}
+	managedBlock := prompt[managedStart:managedEnd]
+	if strings.Contains(managedBlock, legacyMandatoryWording) {
+		t.Fatalf("managed delegation block retained legacy wording %q", legacyMandatoryWording)
+	}
+	if !strings.Contains(managedBlock, "fully mandatory") {
+		t.Fatal("managed delegation block missing migrated wording \"fully mandatory\"")
+	}
+	if strings.Count(text, "#### Review Lens Selection") != 1 {
+		t.Fatalf("opencode.json must contain exactly one Review Lens Selection section; got %d", strings.Count(text, "#### Review Lens Selection"))
+	}
+}
+
+func TestEnsurePreservedOpenCodeDelegationHardGatesMigratesCanonicalReviewCommand(t *testing.T) {
+	legacy := "before commit, push, or PR after code changes, run the concrete review lens(es) selected by Review Lens Selection unless the diff is trivial (tier 1)"
+	got := ensurePreservedOpenCodeDelegationHardGates(legacy)
+	if !strings.Contains(got, "`gentle-ai review validate --gate <gate> --cwd <repo>`") {
+		t.Fatalf("migrated delegation gates missing canonical review command:\n%s", got)
+	}
+	if strings.Contains(got, "native review validate --gate") {
+		t.Fatalf("migrated delegation gates retained non-existent command:\n%s", got)
+	}
+}
+
+func TestInjectOpenCodeUpgradesPreservedV1ReviewExecutionContract(t *testing.T) {
+	home := t.TempDir()
+	mockNoPackageManager(t)
+
+	settingsPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(settings dir) error = %v", err)
+	}
+
+	const staleV1Prompt = `# External profile prompt
+
+Keep this user-authored orchestration policy unchanged.
+
+#### Review Execution Contract
+
+Run an exhaustive review pass, then repeat until a dry pass.
+All severities enter the fix and re-review loop.
+WARNING findings use status open when assessed as real.
+Launch three refuters per candidate before fixing.
+
+#### User-Owned Policy
+
+PRESERVE_THIS_UNRELATED_SECTION exactly as authored.
+`
+	seed := `{
+  "agent": {
+    "gentle-orchestrator": {
+      "mode": "primary",
+      "prompt": ` + strconv.Quote(staleV1Prompt) + `
+    }
+  }
+}`
+	if err := os.WriteFile(settingsPath, []byte(seed), 0o644); err != nil {
+		t.Fatalf("WriteFile(opencode.json) error = %v", err)
+	}
+
+	opts := InjectOptions{PreserveOpenCodeOrchestratorPrompt: true}
+	if _, err := Inject(home, opencodeAdapter(), model.SDDModeMulti, opts); err != nil {
+		t.Fatalf("first Inject() error = %v", err)
+	}
+
+	prompt := readGentleOrchestratorPrompt(t, settingsPath)
+	assertTextContainsClauses(t, "migrated preserved OpenCode prompt", prompt, requiredLedgerClauses)
+	assertTextContainsClauses(t, "migrated preserved OpenCode prompt", prompt, []string{requiredOrchestratorMergeModeClause})
+	for _, preserved := range []string{
+		"Keep this user-authored orchestration policy unchanged.",
+		"#### User-Owned Policy",
+		"PRESERVE_THIS_UNRELATED_SECTION exactly as authored.",
+	} {
+		if !strings.Contains(prompt, preserved) {
+			t.Errorf("migrated prompt lost unrelated user content %q", preserved)
+		}
+	}
+	for _, stale := range []string{
+		"repeat until a dry pass",
+		"All severities enter the fix and re-review loop",
+		"WARNING findings use status open",
+		"three refuters per candidate",
+	} {
+		if strings.Contains(prompt, stale) {
+			t.Errorf("migrated prompt retained stale v1 review semantics %q", stale)
+		}
+	}
+	if got := strings.Count(prompt, "#### Review Execution Contract"); got != 1 {
+		t.Fatalf("migrated prompt has %d Review Execution Contract headings, want 1", got)
+	}
+	if got := strings.Count(prompt, "<!-- gentle-ai:review-execution-contract-migration -->"); got != 1 {
+		t.Fatalf("migrated prompt has %d review-contract migration markers, want 1", got)
+	}
+
+	if _, err := Inject(home, opencodeAdapter(), model.SDDModeMulti, opts); err != nil {
+		t.Fatalf("second Inject() error = %v", err)
+	}
+	secondPrompt := readGentleOrchestratorPrompt(t, settingsPath)
+	if secondPrompt != prompt {
+		diffAt := 0
+		for diffAt < len(prompt) && diffAt < len(secondPrompt) && prompt[diffAt] == secondPrompt[diffAt] {
+			diffAt++
+		}
+		start := max(0, diffAt-80)
+		firstEnd := min(len(prompt), diffAt+160)
+		secondEnd := min(len(secondPrompt), diffAt+160)
+		t.Fatalf("preserved v1 Review Execution Contract migration is not idempotent at byte %d\nfirst:  %q\nsecond: %q", diffAt, prompt[start:firstEnd], secondPrompt[start:secondEnd])
 	}
 }
 
@@ -1804,9 +2033,10 @@ func TestInjectOpenCodeMultiMode(t *testing.T) {
 		t.Fatalf("agent key has unexpected type: %T", agentRaw)
 	}
 
-	// Multi overlay must contain gentle-orchestrator + 10 SDD sub-agents + 3 JD agents + 4 review agents = 18 agents.
-	if len(agentMap) != 18 {
-		t.Fatalf("agent count = %d, want 18", len(agentMap))
+	// Multi overlay must contain gentle-orchestrator + 10 SDD sub-agents +
+	// 3 JD agents + 4 review agents + 1 batched refuter = 19 agents.
+	if len(agentMap) != 19 {
+		t.Fatalf("agent count = %d, want 19", len(agentMap))
 	}
 
 	// Verify gentle-orchestrator is present.
@@ -1830,7 +2060,7 @@ func TestInjectOpenCodeMultiMode(t *testing.T) {
 	}
 
 	// Verify representative sub-agents are present.
-	for _, subAgent := range []string{"sdd-init", "sdd-apply", "sdd-verify", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-archive", "jd-judge-a", "jd-judge-b", "jd-fix-agent", "review-risk", "review-readability", "review-reliability", "review-resilience"} {
+	for _, subAgent := range []string{"sdd-init", "sdd-apply", "sdd-verify", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-archive", "jd-judge-a", "jd-judge-b", "jd-fix-agent", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"} {
 		if _, ok := agentMap[subAgent]; !ok {
 			t.Fatalf("missing sub-agent %q", subAgent)
 		}
@@ -2166,12 +2396,13 @@ func TestInjectOpenCodeEmptySDDModeDefaultsSingle(t *testing.T) {
 		t.Fatalf("agent key has unexpected type: %T", agentRaw)
 	}
 
-	// Empty mode defaults to single — gentle-orchestrator + 10 SDD sub-agents + 3 JD agents + 4 review agents = 18 agents.
+	// Empty mode defaults to single — gentle-orchestrator + 10 SDD sub-agents +
+	// 3 JD agents + 4 review agents + 1 batched refuter = 19 agents.
 	if _, ok := agentMap["gentle-orchestrator"]; !ok {
 		t.Fatal("missing gentle-orchestrator agent")
 	}
-	if len(agentMap) != 18 {
-		t.Fatalf("agent count = %d, want 18", len(agentMap))
+	if len(agentMap) != 19 {
+		t.Fatalf("agent count = %d, want 19", len(agentMap))
 	}
 
 	// Verify orchestrator mode is "primary".
@@ -2200,7 +2431,7 @@ func TestInjectOpenCodeEmptySDDModeDefaultsSingle(t *testing.T) {
 	}
 
 	// Verify sub-agents are present with mode "subagent".
-	for _, subAgent := range []string{"sdd-init", "sdd-apply", "sdd-verify", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-archive", "jd-judge-a", "jd-judge-b", "jd-fix-agent", "review-risk", "review-readability", "review-reliability", "review-resilience"} {
+	for _, subAgent := range []string{"sdd-init", "sdd-apply", "sdd-verify", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks", "sdd-archive", "jd-judge-a", "jd-judge-b", "jd-fix-agent", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"} {
 		raw, ok := agentMap[subAgent]
 		if !ok {
 			t.Fatalf("missing sub-agent %q", subAgent)
@@ -2216,6 +2447,13 @@ func TestInjectOpenCodeEmptySDDModeDefaultsSingle(t *testing.T) {
 			t.Fatalf("gentle-orchestrator permission.task[%s] = %v, want allow", subAgent, taskAllowlist[subAgent])
 		}
 	}
+	for _, builtIn := range []string{"general", "explore"} {
+		if got := taskAllowlist[builtIn]; got != "allow" {
+			t.Fatalf("gentle-orchestrator permission.task[%s] = %v, want allow", builtIn, got)
+		}
+	}
+	refuterTools := agentMap["review-refuter"].(map[string]any)["tools"].(map[string]any)
+	assertOpenCodeRefuterToolsReadOnly(t, "rendered single-mode OpenCode config", refuterTools)
 }
 
 func TestInjectClaudeIgnoresSDDMode(t *testing.T) {
@@ -2550,10 +2788,23 @@ func TestInjectOpenClawRejectsAmbiguousWorkspacePath(t *testing.T) {
 func TestInjectOpenCodeMultiModeWithModelAssignments(t *testing.T) {
 	mockNoPackageManager(t)
 	home := t.TempDir()
+	settingsPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	seed := `{"$schema":"https://opencode.ai/config.json","username":"review-user","agent":{"custom":{"model":"custom/provider-model","description":"preserve me"}}}`
+	if err := os.WriteFile(settingsPath, []byte(seed), 0o644); err != nil {
+		t.Fatalf("WriteFile(opencode.json) error = %v", err)
+	}
 
 	assignments := map[string]model.ModelAssignment{
-		"sdd-init":  {ProviderID: "anthropic", ModelID: "claude-sonnet-4-20250514"},
-		"sdd-apply": {ProviderID: "openai", ModelID: "gpt-4o"},
+		"sdd-init":           {ProviderID: "anthropic", ModelID: "claude-sonnet-4-20250514"},
+		"sdd-apply":          {ProviderID: "openai", ModelID: "gpt-4o"},
+		"review-risk":        {ProviderID: "anthropic", ModelID: "claude-sonnet-4"},
+		"review-readability": {ProviderID: "openai", ModelID: "gpt-5-mini"},
+		"review-reliability": {ProviderID: "openai", ModelID: "gpt-5"},
+		"review-resilience":  {ProviderID: "anthropic", ModelID: "claude-sonnet-4"},
+		"review-refuter":     {ProviderID: "openai", ModelID: "gpt-5", Effort: "high"},
 	}
 
 	result, err := Inject(home, opencodeAdapter(), "multi", InjectOptions{OpenCodeModelAssignments: assignments})
@@ -2564,7 +2815,6 @@ func TestInjectOpenCodeMultiModeWithModelAssignments(t *testing.T) {
 		t.Fatal("Inject(multi, assignments) changed = false")
 	}
 
-	settingsPath := filepath.Join(home, ".config", "opencode", "opencode.json")
 	content, err := os.ReadFile(settingsPath)
 	if err != nil {
 		t.Fatalf("ReadFile(opencode.json) error = %v", err)
@@ -2578,6 +2828,13 @@ func TestInjectOpenCodeMultiModeWithModelAssignments(t *testing.T) {
 	agentMap, ok := root["agent"].(map[string]any)
 	if !ok {
 		t.Fatal("opencode.json missing agent map")
+	}
+	if root["$schema"] != "https://opencode.ai/config.json" || root["username"] != "review-user" {
+		t.Fatalf("unrelated config was not preserved: %v", root)
+	}
+	custom := agentMap["custom"].(map[string]any)
+	if custom["model"] != "custom/provider-model" || custom["description"] != "preserve me" {
+		t.Fatalf("unrelated custom agent changed: %v", custom)
 	}
 
 	// Verify sdd-init has the assigned model.
@@ -2596,6 +2853,21 @@ func TestInjectOpenCodeMultiModeWithModelAssignments(t *testing.T) {
 	}
 	if m, _ := applyAgent["model"].(string); m != "openai/gpt-4o" {
 		t.Fatalf("sdd-apply model = %q, want %q", m, "openai/gpt-4o")
+	}
+	for agent, want := range map[string]string{
+		"review-risk":        "anthropic/claude-sonnet-4",
+		"review-readability": "openai/gpt-5-mini",
+		"review-reliability": "openai/gpt-5",
+		"review-resilience":  "anthropic/claude-sonnet-4",
+		"review-refuter":     "openai/gpt-5",
+	} {
+		definition := agentMap[agent].(map[string]any)
+		if got := definition["model"]; got != want {
+			t.Fatalf("%s model = %q, want %q", agent, got, want)
+		}
+	}
+	if got := agentMap["review-refuter"].(map[string]any)["variant"]; got != "high" {
+		t.Fatalf("review-refuter variant = %q, want high", got)
 	}
 
 	// Unassigned phases should NOT have a model field — the overlay no longer
@@ -4682,8 +4954,8 @@ func TestInjectWritesNativeReviewAgentFiles(t *testing.T) {
 				t.Fatalf("Inject(%s) changed = false", tt.name)
 			}
 
-			for _, agent := range reviewAgentNames {
-				assertNativeAgentFile(t, filepath.Join(tt.agentsDir(home), agent+".md"), "No findings.")
+			for _, agent := range opencodemodel.ReviewLensPhases() {
+				assertNativeAgentFile(t, filepath.Join(tt.agentsDir(home), agent+".md"), `"findings":[]`)
 				for _, ext := range tt.extraExts {
 					want := tt.extraContains[ext]
 					if ext == ".yaml" {
@@ -4691,6 +4963,14 @@ func TestInjectWritesNativeReviewAgentFiles(t *testing.T) {
 					}
 					assertNativeAgentFile(t, filepath.Join(tt.agentsDir(home), agent+ext), want)
 				}
+			}
+			assertNativeAgentFile(t, filepath.Join(tt.agentsDir(home), opencodemodel.ReviewRefuterAgent+".md"), "complete merged list of BLOCKER/CRITICAL candidates")
+			for _, ext := range tt.extraExts {
+				want := tt.extraContains[ext]
+				if ext == ".yaml" {
+					want += opencodemodel.ReviewRefuterAgent + ".md"
+				}
+				assertNativeAgentFile(t, filepath.Join(tt.agentsDir(home), opencodemodel.ReviewRefuterAgent+ext), want)
 			}
 		})
 	}
@@ -6069,11 +6349,18 @@ func TestInject_CodexPerPhaseModelAssignments_InjectsPerPhaseTable(t *testing.T)
 	home := t.TempDir()
 	adapter := codexInjectAdapter()
 
-	// Custom per-phase: sdd-propose gets gpt-5.4.
+	// Custom per-phase: sdd-propose gets gpt-5.4, while unassigned phases
+	// preserve the selected/saved carril models instead of reverting to the
+	// Recommended preset.
 	opts := InjectOptions{
 		CodexModelAssignments: model.CodexModelPresetRecommended(),
 		CodexPhaseModelAssignments: map[string]string{
 			"sdd-propose": "gpt-5.4",
+		},
+		CodexCarrilModelAssignments: map[string]string{
+			"sdd-strong": "gpt-5.4-mini",
+			"sdd-mid":    "gpt-5.5",
+			"sdd-cheap":  "gpt-5.3-codex",
 		},
 	}
 
@@ -6104,7 +6391,20 @@ func TestInject_CodexPerPhaseModelAssignments_InjectsPerPhaseTable(t *testing.T)
 	if !strings.Contains(text, wantRow) {
 		t.Errorf("AGENTS.md missing expected sdd-propose row %q:\n%s", wantRow, text)
 	}
-	// No unresolved placeholders.
+	// An unassigned strong phase must preserve the supplied carril model.
+	wantFallbackRow := "| `sdd-design` | `gpt-5.4-mini` | `medium` |"
+	if !strings.Contains(text, wantFallbackRow) {
+		t.Errorf("AGENTS.md missing preserved carril fallback row %q:\n%s", wantFallbackRow, text)
+	}
+	// The delegation example must refer readers back to the generated table,
+	// not hardcode values that are wrong for some presets.
+	if strings.Contains(text, `model="gpt-5.6-sol", reasoning_effort="xhigh"`) {
+		t.Errorf("AGENTS.md contains a hardcoded delegation example that can contradict the generated table:\n%s", text)
+	}
+	if !strings.Contains(text, `model="<assigned-model>"`) || !strings.Contains(text, `reasoning_effort="<assigned-effort>"`) {
+		t.Errorf("AGENTS.md delegation example must use assigned-value placeholders:\n%s", text)
+	}
+	// No unresolved template placeholders.
 	if strings.Contains(text, "{{") {
 		t.Errorf("AGENTS.md contains unresolved placeholder '{{' after Inject:\n%s", text)
 	}
@@ -6248,7 +6548,7 @@ func TestInjectCodexWithCarrilModels(t *testing.T) {
 }
 
 // TestInjectCodexNilCarrilModels verifies that nil CodexCarrilModelAssignments
-// causes the render to use canonical defaults (gpt-5.5 / gpt-5.4-mini).
+// causes the render to use canonical GPT-5.6 defaults.
 func TestInjectCodexNilCarrilModels(t *testing.T) {
 	home := t.TempDir()
 	adapter := codexInjectAdapter()
@@ -6270,8 +6570,10 @@ func TestInjectCodexNilCarrilModels(t *testing.T) {
 	if !strings.Contains(text, "Model") {
 		t.Error("AGENTS.md missing Model column — nil carrilModels should fall back to defaults")
 	}
-	if !strings.Contains(text, "gpt-5.4-mini") {
-		t.Error("AGENTS.md missing gpt-5.4-mini — nil carrilModels should show sdd-cheap default")
+	for _, want := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("AGENTS.md missing %s — nil carrilModels should show GPT-5.6 defaults", want)
+		}
 	}
 }
 

@@ -305,8 +305,9 @@ test_dry_run_full_preset_persona_before_sdd() {
 }
 
 test_preset_no_legacy_theme_in_any_preset() {
-    log_test "Legacy theme component is NOT in any preset"
+    log_test "Presets exclude the unsafe generic theme component"
 
+    local full_order_str=""
     for preset in minimal ecosystem-only full-gentleman; do
         output=$($BINARY install --preset "$preset" --agent claude-code --dry-run 2>&1) || true
         local components_line
@@ -315,9 +316,20 @@ test_preset_no_legacy_theme_in_any_preset() {
         order_str=${components_line#*Components order:}
         order_str=${order_str# }
         if echo "$order_str" | tr ',' '\n' | grep -qx "theme"; then
-            log_fail "Preset '$preset' unexpectedly includes legacy theme component"
+            log_fail "Preset '$preset' unexpectedly includes unsafe generic theme component"
         else
-            log_pass "Preset '$preset' does NOT include legacy theme component"
+            log_pass "Preset '$preset' excludes unsafe generic theme component"
+        fi
+        if [ "$preset" = "full-gentleman" ]; then
+            full_order_str=$order_str
+        fi
+    done
+
+    for component in claude-theme opencode-gentle-logo; do
+        if echo "$full_order_str" | tr ',' '\n' | grep -qx "$component"; then
+            log_pass "Preset 'full-gentleman' includes safe visual component '$component'"
+        else
+            log_fail "Preset 'full-gentleman' must include safe visual component '$component'"
         fi
     done
 }
@@ -549,12 +561,17 @@ test_cc_persona_gentleman() {
     if $BINARY install --agent claude-code --component persona --persona gentleman 2>&1; then
         assert_file_exists "$HOME/.claude/CLAUDE.md" "CLAUDE.md exists"
         assert_file_contains "$HOME/.claude/CLAUDE.md" "gentle-ai:persona" "CLAUDE.md has persona section marker"
-        assert_file_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "Gentleman persona has 'Senior Architect'"
+        # Claude has an active output-style channel — the CLAUDE.md persona
+        # section is now a residual (tooling directives + pointer only); tone
+        # content lives exclusively in the output style (design.md Decision 1).
+        assert_file_contains "$HOME/.claude/CLAUDE.md" "Persona Voice" "CLAUDE.md persona residual points to the output style"
+        assert_file_not_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "CLAUDE.md persona residual carries no tone content"
         assert_file_size_min "$HOME/.claude/CLAUDE.md" 200 "Persona section is substantial"
-        # Output-style file
+        # Output-style file — canonical tone channel
         assert_file_exists "$HOME/.claude/output-styles/gentleman.md" "Output-style file exists"
         assert_file_contains "$HOME/.claude/output-styles/gentleman.md" "name: Gentleman" "Output-style has YAML frontmatter"
         assert_file_contains "$HOME/.claude/output-styles/gentleman.md" "keep-coding-instructions: true" "Output-style keeps coding instructions"
+        assert_file_contains "$HOME/.claude/output-styles/gentleman.md" "Senior Architect" "Output-style carries the Gentleman tone content"
         # settings.json outputStyle key
         assert_file_exists "$HOME/.claude/settings.json" "settings.json exists"
         assert_file_contains "$HOME/.claude/settings.json" "outputStyle" "settings.json has outputStyle key"
@@ -571,8 +588,14 @@ test_cc_persona_neutral() {
     if $BINARY install --agent claude-code --component persona --persona neutral 2>&1; then
         assert_file_exists "$HOME/.claude/CLAUDE.md" "CLAUDE.md exists"
         assert_file_contains "$HOME/.claude/CLAUDE.md" "gentle-ai:persona" "CLAUDE.md has persona section marker"
-        assert_file_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "Neutral persona keeps the teacher identity"
-        assert_file_not_contains "$HOME/.claude/CLAUDE.md" "Rioplatense\|voseo\|loco\|ponete las pilas" "Neutral persona excludes regional language"
+        # Claude has an active output-style channel — the CLAUDE.md persona
+        # section is now a residual; the mentor identity lives in the output
+        # style (design.md Decision 1).
+        assert_file_contains "$HOME/.claude/CLAUDE.md" "Persona Voice" "CLAUDE.md persona residual points to the output style"
+        assert_file_not_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "CLAUDE.md persona residual carries no tone content"
+        assert_file_exists "$HOME/.claude/output-styles/neutral.md" "Neutral output-style file exists"
+        assert_file_contains "$HOME/.claude/output-styles/neutral.md" "Push back when user asks for code without context or understanding" "Neutral output-style carries the mentor tone content"
+        assert_file_not_contains "$HOME/.claude/output-styles/neutral.md" "Rioplatense\|voseo\|loco\|ponete las pilas" "Neutral output-style excludes regional language"
     else
         log_fail "persona (neutral) install command failed"
     fi
@@ -758,15 +781,17 @@ test_cc_custom_sdd_plus_skills() {
 }
 
 test_cc_context7_injection() {
-    log_test "Claude Code: context7 injection (MCP JSON)"
+    log_test "Claude Code: context7 injection (settings.json MCP servers)"
     cleanup_test_env
 
     if $BINARY install --agent claude-code --component context7 --persona neutral 2>&1; then
-        local mcp_file="$HOME/.claude/mcp/context7.json"
-        assert_file_exists "$mcp_file" "context7.json MCP config"
-        assert_file_contains "$mcp_file" '"command"' "context7.json has 'command' key"
-        assert_file_contains "$mcp_file" 'context7-mcp' "context7.json points to context7-mcp"
-        assert_valid_json "$mcp_file" "context7.json is valid JSON"
+        local settings="$HOME/.claude/settings.json"
+        assert_file_exists "$settings" "Claude settings.json"
+        assert_file_contains "$settings" '"mcpServers"' "settings.json has mcpServers key"
+        assert_file_contains "$settings" '"context7"' "settings.json has context7 server"
+        assert_file_contains "$settings" 'context7-mcp' "settings.json points to context7-mcp"
+        assert_valid_json "$settings" "settings.json is valid JSON"
+        assert_file_not_exists "$HOME/.claude/mcp/context7.json" "legacy context7 MCP file is not written"
     else
         log_fail "context7 install command failed"
     fi
@@ -1043,9 +1068,10 @@ test_full_preset_claude_code() {
         assert_file_contains "$settings" '"theme"' "Has theme"
         assert_valid_json "$settings" "settings.json is valid JSON"
 
-        # MCP configs
-        assert_file_exists "$HOME/.claude/mcp/context7.json" "context7 MCP config"
-        assert_valid_json "$HOME/.claude/mcp/context7.json" "context7.json is valid JSON"
+        # MCP config is merged into Claude settings.json.
+        assert_file_contains "$settings" '"mcpServers"' "Has MCP servers"
+        assert_file_contains "$settings" '"context7"' "Has context7 MCP"
+        assert_file_contains "$settings" 'context7-mcp' "Context7 MCP uses pinned package"
 
         # Skills
         assert_file_count_min "$HOME/.claude/skills" "SKILL.md" 11 "At least 11 skill files"
@@ -1156,7 +1182,7 @@ test_ecosystem_both_agents() {
         # Claude Code
         assert_file_exists "$HOME/.claude/CLAUDE.md" "Claude CLAUDE.md"
         assert_file_contains "$HOME/.claude/CLAUDE.md" "gentle-ai:sdd-orchestrator" "Claude has SDD"
-        assert_file_exists "$HOME/.claude/mcp/context7.json" "Claude context7 MCP"
+        assert_file_contains "$HOME/.claude/settings.json" '"context7"' "Claude context7 MCP"
         assert_file_count_min "$HOME/.claude/skills" "SKILL.md" 11 "Claude skills"
 
         # OpenCode
@@ -1522,7 +1548,7 @@ test_edge_multiple_agents_same_component() {
 
     if $BINARY install --agent claude-code --agent opencode --component context7 --persona neutral 2>&1; then
         # Both agents should have context7
-        assert_file_exists "$HOME/.claude/mcp/context7.json" "Claude context7"
+        assert_file_contains "$HOME/.claude/settings.json" '"context7"' "Claude context7"
         assert_file_contains "$HOME/.config/opencode/opencode.json" '"context7"' "OpenCode context7"
     else
         log_fail "Multiple agents + context7 install command failed"
@@ -1533,16 +1559,23 @@ test_edge_persona_switch() {
     log_test "Edge case: switching persona from gentleman to neutral"
     cleanup_test_env
 
-    # First install with gentleman (Rioplatense language present)
+    # First install with gentleman. Claude has an active output-style channel,
+    # so the teacher identity ("Senior Architect") lives in the output style —
+    # the CLAUDE.md persona section is a residual pointer (design.md Decision 1).
     $BINARY install --agent claude-code --component persona --persona gentleman 2>&1 || true
-    assert_file_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "First install: gentleman persona"
+    assert_file_contains "$HOME/.claude/CLAUDE.md" "Persona Voice" "First install: gentleman persona residual points to the output style"
+    assert_file_contains "$HOME/.claude/output-styles/gentleman.md" "Senior Architect" "First install: gentleman output-style has the teacher identity"
 
-    # Then install with neutral — should REPLACE persona section.
-    # Neutral is the FULL teacher persona (same identity, no regional language).
-    # So "Senior Architect" still appears, but Rioplatense markers are gone.
+    # Then install with neutral — should REPLACE persona section AND the
+    # selected output style. Neutral is a distinct professional voice (same
+    # mentor identity, no regional language, no "Senior Architect" bio), so
+    # the CLAUDE.md residual stays tone-free and the neutral output style is
+    # checked for its own mentor-teaching tone content instead.
     $BINARY install --agent claude-code --component persona --persona neutral 2>&1 || true
-    assert_file_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "Second install: neutral still has teacher identity"
-    assert_file_not_contains "$HOME/.claude/CLAUDE.md" "Rioplatense\|voseo\|ponete las pilas" "Second install: regional language removed"
+    assert_file_contains "$HOME/.claude/CLAUDE.md" "Persona Voice" "Second install: neutral persona residual still points to the output style"
+    assert_file_not_contains "$HOME/.claude/CLAUDE.md" "Senior Architect" "Second install: CLAUDE.md residual carries no tone content"
+    assert_file_contains "$HOME/.claude/output-styles/neutral.md" "Push back when user asks for code without context or understanding" "Second install: neutral output-style has the mentor identity"
+    assert_file_not_contains "$HOME/.claude/output-styles/neutral.md" "Rioplatense\|voseo\|ponete las pilas" "Second install: regional language removed from output style"
     assert_no_duplicate_section "$HOME/.claude/CLAUDE.md" "persona" "No duplicate persona after switch"
 }
 

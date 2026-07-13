@@ -3,6 +3,7 @@ package upgrade
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,9 +18,18 @@ import (
 	"github.com/gentleman-programming/gentle-ai/internal/update"
 )
 
+func TestMain(m *testing.M) {
+	if err := os.Unsetenv("GENTLE_AI_CHANNEL"); err != nil {
+		panic(err)
+	}
+
+	os.Exit(m.Run())
+}
+
 // --- TestRunStrategy_BrewUpgrade ---
 
 func TestRunStrategy_BrewUpgrade(t *testing.T) {
+	mockHomebrewOwnership(t, update.HomebrewFormula)
 	origExecCommand := execCommand
 	t.Cleanup(func() { execCommand = origExecCommand })
 
@@ -48,8 +58,8 @@ func TestRunStrategy_BrewUpgrade(t *testing.T) {
 	if gotName != "brew" {
 		t.Errorf("exec name = %q, want %q", gotName, "brew")
 	}
-	if len(gotArgs) < 2 || gotArgs[0] != "upgrade" || gotArgs[1] != "engram" {
-		t.Errorf("exec args = %v, want [upgrade engram]", gotArgs)
+	if len(gotArgs) < 3 || gotArgs[0] != "upgrade" || gotArgs[1] != "--formula" || gotArgs[2] != "engram" {
+		t.Errorf("exec args = %v, want [upgrade --formula engram]", gotArgs)
 	}
 }
 
@@ -350,29 +360,48 @@ func TestEffectiveMethod_NonGentleAIToolsOnWindowsUseBinary(t *testing.T) {
 // --- TestEffectiveMethod ---
 
 func TestEffectiveMethod(t *testing.T) {
+	origHomebrewPackageInstalled := homebrewPackageInstalled
+	t.Cleanup(func() { homebrewPackageInstalled = origHomebrewPackageInstalled })
+
 	tests := []struct {
-		name    string
-		tool    update.ToolInfo
-		profile system.PlatformProfile
-		want    update.InstallMethod
+		name          string
+		tool          update.ToolInfo
+		profile       system.PlatformProfile
+		brewInstalled bool
+		want          update.InstallMethod
 	}{
 		{
-			name:    "brew profile overrides go-install",
-			tool:    update.ToolInfo{Name: "engram", InstallMethod: update.InstallGoInstall},
-			profile: system.PlatformProfile{PackageManager: "brew"},
-			want:    update.InstallBrew,
+			name:          "brew-owned package overrides go-install",
+			tool:          update.ToolInfo{Name: "engram", InstallMethod: update.InstallGoInstall},
+			profile:       system.PlatformProfile{PackageManager: "brew"},
+			brewInstalled: true,
+			want:          update.InstallBrew,
 		},
 		{
-			name:    "brew profile overrides binary",
-			tool:    update.ToolInfo{Name: "gga", InstallMethod: update.InstallBinary},
-			profile: system.PlatformProfile{PackageManager: "brew"},
-			want:    update.InstallBrew,
+			name:          "brew-owned package overrides binary",
+			tool:          update.ToolInfo{Name: "gga", InstallMethod: update.InstallBinary},
+			profile:       system.PlatformProfile{PackageManager: "brew"},
+			brewInstalled: true,
+			want:          update.InstallBrew,
 		},
 		{
-			name:    "brew profile overrides script",
-			tool:    update.ToolInfo{Name: "gga", InstallMethod: update.InstallScript},
-			profile: system.PlatformProfile{PackageManager: "brew"},
-			want:    update.InstallBrew,
+			name:          "brew-owned package overrides script",
+			tool:          update.ToolInfo{Name: "gga", InstallMethod: update.InstallScript},
+			profile:       system.PlatformProfile{PackageManager: "brew"},
+			brewInstalled: true,
+			want:          update.InstallBrew,
+		},
+		{
+			name:    "brew profile without package ownership respects declared method",
+			tool:    update.ToolInfo{Name: "gentle-ai", InstallMethod: update.InstallBinary},
+			profile: system.PlatformProfile{OS: "darwin", PackageManager: "brew"},
+			want:    update.InstallBinary,
+		},
+		{
+			name:    "brew profile without package ownership can use go-install fallback",
+			tool:    update.ToolInfo{Name: "mytool", InstallMethod: update.InstallBinary, GoImportPath: "github.com/example/mytool/cmd/mytool"},
+			profile: system.PlatformProfile{PackageManager: "brew", GoAvailable: true},
+			want:    update.InstallGoInstall,
 		},
 		{
 			name:    "apt profile respects declared method (go-install)",
@@ -393,17 +422,19 @@ func TestEffectiveMethod(t *testing.T) {
 			want:    update.InstallScript,
 		},
 		{
-			name:    "brew profile does not override OpenCode plugin method",
-			tool:    update.ToolInfo{Name: "opencode-subagent-statusline", InstallMethod: update.InstallOpenCodePlugin, NpmPackage: "opencode-subagent-statusline"},
-			profile: system.PlatformProfile{PackageManager: "brew"},
-			want:    update.InstallOpenCodePlugin,
+			name:          "brew profile does not override OpenCode plugin method",
+			tool:          update.ToolInfo{Name: "opencode-subagent-statusline", InstallMethod: update.InstallOpenCodePlugin, NpmPackage: "opencode-subagent-statusline"},
+			profile:       system.PlatformProfile{PackageManager: "brew"},
+			brewInstalled: true,
+			want:          update.InstallOpenCodePlugin,
 		},
-		// Auto-detect order: brew → go-install → binary (issue #246).
+		// Auto-detect order: brew-owned package → go-install → binary (issue #246).
 		{
-			name:    "auto-detect: brew available → brew wins regardless of GoImportPath",
-			tool:    update.ToolInfo{Name: "mytool", InstallMethod: update.InstallBinary, GoImportPath: "github.com/example/mytool/cmd/mytool"},
-			profile: system.PlatformProfile{PackageManager: "brew", GoAvailable: true},
-			want:    update.InstallBrew,
+			name:          "auto-detect: brew-owned package wins regardless of GoImportPath",
+			tool:          update.ToolInfo{Name: "mytool", InstallMethod: update.InstallBinary, GoImportPath: "github.com/example/mytool/cmd/mytool"},
+			profile:       system.PlatformProfile{PackageManager: "brew", GoAvailable: true},
+			brewInstalled: true,
+			want:          update.InstallBrew,
 		},
 		{
 			name:    "auto-detect: brew missing + go available + GoImportPath set → go-install",
@@ -427,11 +458,47 @@ func TestEffectiveMethod(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			homebrewPackageInstalled = func(toolName string) bool {
+				return toolName == tc.tool.Name && tc.brewInstalled
+			}
+
 			got := effectiveMethod(tc.tool, tc.profile)
 			if got != tc.want {
 				t.Errorf("effectiveMethod = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHomebrewPackageInstalledWithRequiresActiveBrewPath(t *testing.T) {
+	brewPrefix := filepath.Join(t.TempDir(), "opt", "gentle-ai")
+	brewBin := filepath.Join(brewPrefix, "bin", "gentle-ai")
+	nonBrewBin := filepath.Join(t.TempDir(), "gentle-ai")
+
+	run := func(name string, args ...string) *exec.Cmd {
+		if name != "brew" {
+			return mockCmd("false")
+		}
+		if len(args) >= 3 && args[0] == "list" && args[1] == "--formula" && args[2] == "gentle-ai" {
+			return mockCmd("true")
+		}
+		if len(args) == 2 && args[0] == "--prefix" && args[1] == "gentle-ai" {
+			return mockCmd("echo", brewPrefix)
+		}
+		return mockCmd("false")
+	}
+
+	if !homebrewPackageInstalledWith(run, func(string) (string, error) { return brewBin, nil }, "gentle-ai") {
+		t.Fatal("expected brew-owned active path to be treated as Homebrew installed")
+	}
+	if homebrewPackageInstalledWith(run, func(string) (string, error) { return nonBrewBin, nil }, "gentle-ai") {
+		t.Fatal("expected shadowing non-brew active path to avoid Homebrew")
+	}
+	if homebrewPackageInstalledWith(func(string, ...string) *exec.Cmd { return mockCmd("false") }, func(string) (string, error) { return brewBin, nil }, "gentle-ai") {
+		t.Fatal("expected brew list failure to avoid Homebrew")
+	}
+	if homebrewPackageInstalledWith(func(string, ...string) *exec.Cmd { return mockCmd("true") }, func(string) (string, error) { return "", errors.New("not found") }, "gentle-ai") {
+		t.Fatal("expected active path lookup failure to avoid Homebrew")
 	}
 }
 
@@ -626,6 +693,153 @@ func TestRunStrategyOpenCodePluginRegisteredPendingRunsPackageManager(t *testing
 	}
 }
 
+func TestRunStrategyOpenCodePluginNpmERESOLVERetriesWithLegacyPeerDeps(t *testing.T) {
+	var callHistory [][]string
+	configureOpenCodeNpmTest(t, func(name string, args ...string) *exec.Cmd {
+		callHistory = append(callHistory, append([]string{name}, args...))
+		if len(callHistory) == 1 {
+			return failingCmd("npm error code ERESOLVE\nnpm error ERESOLVE could not resolve")
+		}
+		return mockCmd("true")
+	})
+
+	readStderr, writeStderr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	origStderr := os.Stderr
+	os.Stderr = writeStderr
+	t.Cleanup(func() { os.Stderr = origStderr })
+
+	_, upgradeErr := runStrategy(context.Background(), openCodePluginUpdateResult("opencode-sdd-engram-manage"), system.PlatformProfile{})
+	os.Stderr = origStderr
+	if err := writeStderr.Close(); err != nil {
+		t.Fatal(err)
+	}
+	warning, err := io.ReadAll(readStderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := readStderr.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if upgradeErr != nil {
+		t.Fatalf("unexpected error on retry: %v", upgradeErr)
+	}
+	if !strings.Contains(string(warning), "WARNING:") || !strings.Contains(string(warning), "--legacy-peer-deps") {
+		t.Fatalf("stderr = %q, want visible legacy peer dependency warning", warning)
+	}
+	if len(callHistory) != 2 {
+		t.Fatalf("expected 2 exec calls (initial + retry), got %d", len(callHistory))
+	}
+	wantRetry := []string{"npm", "install", "--save", "--no-audit", "--no-fund", "--legacy-peer-deps", "opencode-sdd-engram-manage@latest", "@opencode-ai/plugin@latest"}
+	if strings.Join(callHistory[1], " ") != strings.Join(wantRetry, " ") {
+		t.Fatalf("retry command = %v, want %v", callHistory[1], wantRetry)
+	}
+}
+
+func TestRunStrategyOpenCodePluginNpmERESOLVERetryFailurePreservesBothErrors(t *testing.T) {
+	configureOpenCodeNpmTest(t, func(name string, args ...string) *exec.Cmd {
+		if slicesContain(args, "--legacy-peer-deps") {
+			return failingCmd("retry failed")
+		}
+		return failingCmd("npm error code ERESOLVE\noriginal conflict")
+	})
+
+	_, err := runStrategy(context.Background(), openCodePluginUpdateResult("opencode-sdd-engram-manage"), system.PlatformProfile{})
+	if err == nil {
+		t.Fatal("expected retry failure")
+	}
+	for _, want := range []string{"retry failed", "original conflict", "original error", "retry with --legacy-peer-deps failed"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err, want)
+		}
+	}
+}
+
+func TestRunStrategyOpenCodePluginNpmNonERESOLVEDoesNotRetry(t *testing.T) {
+	calls := 0
+	configureOpenCodeNpmTest(t, func(name string, args ...string) *exec.Cmd {
+		calls++
+		return failingCmd("npm error package code ERESOLVE helper failed")
+	})
+
+	_, err := runStrategy(context.Background(), openCodePluginUpdateResult("opencode-sdd-engram-manage"), system.PlatformProfile{})
+	if err == nil {
+		t.Fatal("expected npm failure")
+	}
+	if calls != 1 {
+		t.Fatalf("exec calls = %d, want 1 without retry", calls)
+	}
+}
+
+func TestRunStrategyOpenCodePluginNpmERESOLVEDoesNotRetryAfterCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var callHistory [][]string
+	configureOpenCodeNpmTest(t, func(name string, args ...string) *exec.Cmd {
+		callHistory = append(callHistory, append([]string{name}, args...))
+		cancel()
+		return failingCmd("npm error code ERESOLVE")
+	})
+
+	_, err := runStrategy(ctx, openCodePluginUpdateResult("opencode-sdd-engram-manage"), system.PlatformProfile{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if len(callHistory) != 1 {
+		t.Fatalf("exec calls = %d, want 1 without retry", len(callHistory))
+	}
+	if slicesContain(callHistory[0], "--legacy-peer-deps") {
+		t.Fatalf("initial command unexpectedly includes --legacy-peer-deps: %v", callHistory[0])
+	}
+}
+
+func configureOpenCodeNpmTest(t *testing.T, command func(string, ...string) *exec.Cmd) {
+	t.Helper()
+	origHomeDir, origLookPath, origExecCommand := openCodeHomeDir, lookPathCommand, execCommand
+	t.Cleanup(func() {
+		openCodeHomeDir, lookPathCommand, execCommand = origHomeDir, origLookPath, origExecCommand
+	})
+	home := t.TempDir()
+	opencodeDir := filepath.Join(home, ".config", "opencode")
+	if err := os.MkdirAll(opencodeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(opencodeDir, "tui.json"), []byte(`{"plugin":["opencode-sdd-engram-manage"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	openCodeHomeDir = func() (string, error) { return home, nil }
+	lookPathCommand = func(file string) (string, error) {
+		if file == "npm" {
+			return file, nil
+		}
+		return "", errors.New("not found")
+	}
+	execCommand = command
+}
+
+func openCodePluginUpdateResult(pkg string) update.UpdateResult {
+	return update.UpdateResult{Tool: update.ToolInfo{Name: pkg, InstallMethod: update.InstallOpenCodePlugin, NpmPackage: pkg}, Status: update.RegisteredNotMaterialized}
+}
+
+func slicesContain(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func failingCmd(output string) *exec.Cmd {
+	if runtime.GOOS == "windows" {
+		return exec.Command("cmd", "/c", "echo "+strings.ReplaceAll(output, "\n", " & echo ")+" & exit /b 1")
+	}
+	return exec.Command("sh", "-c", "printf '%s\\n' \"$1\"; exit 1", "sh", output)
+}
+
 func TestRunStrategyOpenCodePluginFallsBackWithoutPackageManager(t *testing.T) {
 	origHomeDir := openCodeHomeDir
 	origLookPath := lookPathCommand
@@ -750,7 +964,7 @@ func TestBrewUpgrade_RunsUpdateBeforeUpgrade(t *testing.T) {
 		return mockCmd("echo", "ok")
 	}
 
-	err := brewUpgrade(context.Background(), "gentle-ai")
+	err := brewUpgrade(context.Background(), update.UpdateResult{Tool: update.ToolInfo{Name: "gentle-ai"}}, update.HomebrewFormula)
 	if err != nil {
 		t.Fatalf("brewUpgrade: unexpected error: %v", err)
 	}
@@ -791,7 +1005,7 @@ func TestBrewUpgrade_UpdateFailureIsNonFatal(t *testing.T) {
 		return mockCmd("echo", "Upgraded gentle-ai")
 	}
 
-	err := brewUpgrade(context.Background(), "gentle-ai")
+	err := brewUpgrade(context.Background(), update.UpdateResult{Tool: update.ToolInfo{Name: "gentle-ai"}}, update.HomebrewFormula)
 	// brew update failed but brew upgrade succeeded → overall success.
 	if err != nil {
 		t.Errorf("expected success when brew update fails but brew upgrade succeeds, got: %v", err)
@@ -832,10 +1046,13 @@ func TestBrewUpgrade_TapsAndTrustsBeforeUpdateAndUpgrade(t *testing.T) {
 			c := call{subcommand: args[0], args: append([]string(nil), args[1:]...)}
 			calls = append(calls, c)
 		}
+		if name == "engram" {
+			return mockCmd("echo", "engram 1.2.3")
+		}
 		return mockCmd("echo", "ok")
 	}
 
-	if err := brewUpgrade(context.Background(), "engram"); err != nil {
+	if err := brewUpgrade(context.Background(), update.UpdateResult{Tool: update.ToolInfo{Name: "engram", DetectCmd: []string{"engram", "version"}}, LatestVersion: "1.2.3"}, update.HomebrewCask); err != nil {
 		t.Fatalf("brewUpgrade: unexpected error: %v", err)
 	}
 
@@ -874,7 +1091,7 @@ func TestBrewUpgrade_FormulaToolUsesFormulaTrust(t *testing.T) {
 		return mockCmd("echo", "ok")
 	}
 
-	if err := brewUpgrade(context.Background(), "gentle-ai"); err != nil {
+	if err := brewUpgrade(context.Background(), update.UpdateResult{Tool: update.ToolInfo{Name: "gentle-ai"}}, update.HomebrewFormula); err != nil {
 		t.Fatalf("brewUpgrade: unexpected error: %v", err)
 	}
 
@@ -889,7 +1106,7 @@ Run brew trust --formula gentleman-programming/tap/gentle-ai to trust it.`
 	advice := homebrewFailureAdvice("gentle-ai", output)
 	for _, want := range []string{
 		"brew trust --formula gentleman-programming/tap/gentle-ai",
-		"brew upgrade gentle-ai",
+		"brew upgrade --formula gentle-ai",
 	} {
 		if !strings.Contains(advice, want) {
 			t.Fatalf("tap trust advice missing %q:\n%s", want, advice)
@@ -903,7 +1120,7 @@ Run brew trust --cask gentleman-programming/tap/engram to trust it.`
 	advice := homebrewFailureAdvice("engram", output)
 	for _, want := range []string{
 		"brew trust --cask gentleman-programming/tap/engram",
-		"brew upgrade engram",
+		"brew upgrade --cask engram",
 	} {
 		if !strings.Contains(advice, want) {
 			t.Fatalf("cask tap trust advice missing %q:\n%s", want, advice)
@@ -926,7 +1143,7 @@ Homebrew's Linux sandbox requires rootless Bubblewrap and unprivileged user name
 		"sudo sysctl -w kernel.unprivileged_userns_clone=1",
 		"sudo sysctl -w user.max_user_namespaces=28633",
 		"sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true",
-		"HOMEBREW_NO_SANDBOX_LINUX=1 brew upgrade gentle-ai",
+		"HOMEBREW_NO_SANDBOX_LINUX=1 brew upgrade --formula gentle-ai",
 	} {
 		if !strings.Contains(advice, want) {
 			t.Fatalf("bubblewrap advice missing %q:\n%s", want, advice)

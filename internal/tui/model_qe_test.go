@@ -28,12 +28,12 @@ func TestQEWelcomeCanonicalCursor_RemapTable(t *testing.T) {
 		{"Sync configs, OpenCode detected", 2, true, 2},
 		{"Upgrade + Sync, no OpenCode", 3, false, 3},
 		{"Upgrade + Sync, OpenCode detected", 3, true, 3},
-		{"Manage backups, no OpenCode", 4, false, 7},
-		{"Manage backups, OpenCode detected", 4, true, 8},
-		{"Managed uninstall, no OpenCode", 5, false, 8},
-		{"Managed uninstall, OpenCode detected", 5, true, 9},
-		{"Quit, no OpenCode", 6, false, 10},
-		{"Quit, OpenCode detected", 6, true, 11},
+		{"Manage backups, no OpenCode", 4, false, 8},
+		{"Manage backups, OpenCode detected", 4, true, 9},
+		{"Managed uninstall, no OpenCode", 5, false, 9},
+		{"Managed uninstall, OpenCode detected", 5, true, 10},
+		{"Quit, no OpenCode", 6, false, 11},
+		{"Quit, OpenCode detected", 6, true, 12},
 	}
 
 	for _, tt := range tests {
@@ -58,8 +58,8 @@ func TestQEWelcomeCanonicalCursor_QuitBoundary(t *testing.T) {
 	t.Run("no OpenCode", func(t *testing.T) {
 		m := qeModelWithOpenCodeDetection(false)
 		got := qeWelcomeCanonicalCursor(m, collapsedQuit)
-		const wantQuit = 10
-		const communityToolsIdx = 9 // base+2, the tail gap qeWelcomeCanonicalCursor must skip
+		const wantQuit = 11
+		const communityToolsIdx = 10 // base+2, the tail gap qeWelcomeCanonicalCursor must skip
 		if got == communityToolsIdx {
 			t.Fatalf("qeWelcomeCanonicalCursor(Quit, no OpenCode) = %d routed to CommunityTools index, want %d (Quit)", got, wantQuit)
 		}
@@ -71,8 +71,8 @@ func TestQEWelcomeCanonicalCursor_QuitBoundary(t *testing.T) {
 	t.Run("OpenCode detected", func(t *testing.T) {
 		m := qeModelWithOpenCodeDetection(true)
 		got := qeWelcomeCanonicalCursor(m, collapsedQuit)
-		const wantQuit = 11
-		const communityToolsIdx = 10 // base+2, the tail gap qeWelcomeCanonicalCursor must skip
+		const wantQuit = 12
+		const communityToolsIdx = 11 // base+2, the tail gap qeWelcomeCanonicalCursor must skip
 		if got == communityToolsIdx {
 			t.Fatalf("qeWelcomeCanonicalCursor(Quit, OpenCode detected) = %d routed to CommunityTools index, want %d (Quit)", got, wantQuit)
 		}

@@ -1,21 +1,23 @@
 package catalog
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 )
 
-// 2.1 — SupportedTriggerEvents returns exactly 6 events.
+// 2.1 — SupportedTriggerEvents returns the closed lifecycle event set.
 func TestSupportedTriggerEvents_ClosedSet(t *testing.T) {
 	events := SupportedTriggerEvents()
-	if len(events) != 6 {
-		t.Fatalf("SupportedTriggerEvents() len = %d, want 6", len(events))
+	if len(events) != 7 {
+		t.Fatalf("SupportedTriggerEvents() len = %d, want 7", len(events))
 	}
 	want := []model.TriggerEvent{
 		model.EventPreCommit,
 		model.EventPrePush,
 		model.EventPrePR,
+		model.EventRelease,
 		model.EventPostSDDPhase,
 		model.EventOnCI,
 		model.EventOnSchedule,
@@ -69,36 +71,36 @@ func TestDefaultTriggerRuleSet_TokenShape(t *testing.T) {
 		return out
 	}
 
-	// (a) pre-commit: exactly one, advisory, run=["review-readability"], When.Always=true
+	// (a) pre-commit: exactly one strong receipt validator; no reviewer launch.
 	t.Run("pre-commit", func(t *testing.T) {
 		bs := bindingsFor(model.EventPreCommit)
 		if len(bs) != 1 {
 			t.Fatalf("pre-commit bindings count = %d, want 1", len(bs))
 		}
 		b := bs[0]
-		if b.Mode != model.ModeAdvisory {
-			t.Errorf("pre-commit mode = %q, want advisory", b.Mode)
+		if b.Mode != model.ModeStrong {
+			t.Errorf("pre-commit mode = %q, want strong", b.Mode)
 		}
-		if len(b.Run) != 1 || b.Run[0] != "review-readability" {
-			t.Errorf("pre-commit run = %v, want [review-readability]", b.Run)
+		if len(b.Run) != 1 || b.Run[0] != "review-receipt-validator" {
+			t.Errorf("pre-commit run = %v, want [review-receipt-validator]", b.Run)
 		}
 		if !b.When.Always {
 			t.Error("pre-commit When.Always = false, want true")
 		}
 	})
 
-	// (b) pre-push: exactly one, advisory, run=["review-readability"], When.Always=true. NOT all 4R.
+	// (b) pre-push validates the same receipt and launches no review lenses.
 	t.Run("pre-push", func(t *testing.T) {
 		bs := bindingsFor(model.EventPrePush)
 		if len(bs) != 1 {
 			t.Fatalf("pre-push bindings count = %d, want 1", len(bs))
 		}
 		b := bs[0]
-		if b.Mode != model.ModeAdvisory {
-			t.Errorf("pre-push mode = %q, want advisory", b.Mode)
+		if b.Mode != model.ModeStrong {
+			t.Errorf("pre-push mode = %q, want strong", b.Mode)
 		}
-		if len(b.Run) != 1 || b.Run[0] != "review-readability" {
-			t.Errorf("pre-push run = %v, want [review-readability]", b.Run)
+		if len(b.Run) != 1 || b.Run[0] != "review-receipt-validator" {
+			t.Errorf("pre-push run = %v, want [review-receipt-validator]", b.Run)
 		}
 		if !b.When.Always {
 			t.Error("pre-push When.Always = false, want true")
@@ -120,7 +122,7 @@ func TestDefaultTriggerRuleSet_TokenShape(t *testing.T) {
 		}
 	})
 
-	// (c) pre-pr: exactly one, strong, all four 4R agents, MinDiffLines=400, PathGlobs includes auth/update.
+	// (c) pre-pr validates tree/base/receipt and never starts full 4R.
 	t.Run("pre-pr", func(t *testing.T) {
 		bs := bindingsFor(model.EventPrePR)
 		if len(bs) != 1 {
@@ -130,35 +132,12 @@ func TestDefaultTriggerRuleSet_TokenShape(t *testing.T) {
 		if b.Mode != model.ModeStrong {
 			t.Errorf("pre-pr mode = %q, want strong", b.Mode)
 		}
-		runSet := map[string]bool{}
-		for _, r := range b.Run {
-			runSet[r] = true
-		}
-		for _, needed := range []string{"review-risk", "review-resilience", "review-readability", "review-reliability"} {
-			if !runSet[needed] {
-				t.Errorf("pre-pr run missing %q", needed)
-			}
-		}
-		if b.When.MinDiffLines != 400 {
-			t.Errorf("pre-pr When.MinDiffLines = %d, want 400", b.When.MinDiffLines)
-		}
-		// Spec E Tier-2 table: auth, update, security, payments.
-		wantGlobs := []string{"**/auth/**", "**/update/**", "**/security/**", "**/payments/**"}
-		globSet := map[string]bool{}
-		for _, g := range b.When.PathGlobs {
-			globSet[g] = true
-		}
-		for _, want := range wantGlobs {
-			if !globSet[want] {
-				t.Errorf("pre-pr When.PathGlobs missing %q", want)
-			}
-		}
-		if b.When.Combine != "or" {
-			t.Errorf("pre-pr When.Combine = %q, want or", b.When.Combine)
+		if len(b.Run) != 1 || b.Run[0] != "review-receipt-validator" || !b.When.Always {
+			t.Errorf("pre-pr binding = %#v, want always receipt validator", b)
 		}
 	})
 
-	// (d) post-sdd-phase: exactly one, strong, run=["judgment-day"], Phases contains design and apply only.
+	// (d) post-sdd-phase starts ordinary review after apply only.
 	t.Run("post-sdd-phase", func(t *testing.T) {
 		bs := bindingsFor(model.EventPostSDDPhase)
 		if len(bs) != 1 {
@@ -168,22 +147,19 @@ func TestDefaultTriggerRuleSet_TokenShape(t *testing.T) {
 		if b.Mode != model.ModeStrong {
 			t.Errorf("post-sdd-phase mode = %q, want strong", b.Mode)
 		}
-		if len(b.Run) != 1 || b.Run[0] != "judgment-day" {
-			t.Errorf("post-sdd-phase run = %v, want [judgment-day]", b.Run)
+		if len(b.Run) != 1 || b.Run[0] != "review-start" {
+			t.Errorf("post-sdd-phase run = %v, want [review-start]", b.Run)
 		}
 		phaseSet := map[string]bool{}
 		for _, p := range b.When.Phases {
 			phaseSet[p] = true
-		}
-		if !phaseSet["design"] {
-			t.Error("post-sdd-phase When.Phases missing design")
 		}
 		if !phaseSet["apply"] {
 			t.Error("post-sdd-phase When.Phases missing apply")
 		}
 		// No other phase names.
 		for p := range phaseSet {
-			if p != "design" && p != "apply" {
+			if p != "apply" {
 				t.Errorf("post-sdd-phase When.Phases contains unexpected phase %q", p)
 			}
 		}
@@ -210,6 +186,22 @@ func TestDefaultTriggerRuleSet_TokenShape(t *testing.T) {
 		for i, b := range rs.Bindings {
 			if b.Reason == "" {
 				t.Errorf("binding[%d] (on=%q) has empty Reason", i, b.On)
+			}
+		}
+	})
+
+	// (g2) Lifecycle reasons describe receipt reuse rather than reviewer fan-out.
+	t.Run("reasons-use-bounded-lifecycle-language", func(t *testing.T) {
+		for i, b := range rs.Bindings {
+			if strings.Contains(strings.ToLower(b.Reason), "advisory") {
+				t.Errorf("binding[%d] (on=%q) Reason still uses v1 advisory language: %q", i, b.On, b.Reason)
+			}
+		}
+		for _, event := range []model.TriggerEvent{model.EventPreCommit, model.EventPrePush, model.EventPrePR, model.EventRelease} {
+			for _, b := range bindingsFor(event) {
+				if !strings.Contains(strings.ToLower(b.Reason), "receipt") && event != model.EventRelease {
+					t.Errorf("%q binding Reason must state receipt validation; got %q", event, b.Reason)
+				}
 			}
 		}
 	})
@@ -241,18 +233,10 @@ func TestDefaultTriggerRuleSet_CopyIsolation(t *testing.T) {
 	}
 }
 
-// 2.5 — The threshold constant equals 400 and is used in the pre-pr binding.
+// 2.5 — The authored-code threshold remains canonical for review/start risk classification.
 func TestDefaultTriggerRuleSet_ThresholdConstant(t *testing.T) {
 	if defaultLargeChangedLineThreshold != 400 {
 		t.Errorf("defaultLargeChangedLineThreshold = %d, want 400", defaultLargeChangedLineThreshold)
-	}
-	rs := DefaultTriggerRuleSet()
-	for _, b := range rs.Bindings {
-		if b.On == model.EventPrePR {
-			if b.When.MinDiffLines != defaultLargeChangedLineThreshold {
-				t.Errorf("pre-pr MinDiffLines = %d, want %d (defaultLargeChangedLineThreshold)", b.When.MinDiffLines, defaultLargeChangedLineThreshold)
-			}
-		}
 	}
 }
 

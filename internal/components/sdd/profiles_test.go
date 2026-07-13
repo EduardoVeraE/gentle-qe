@@ -976,14 +976,16 @@ func keysOf(m map[string]any) []string {
 
 func expectedTaskPermissions(suffix string) map[string]any {
 	permissions := map[string]any{
-		"*": "deny",
+		"*":       "deny",
+		"general": "allow",
+		"explore": "allow",
 	}
 	for _, phase := range profilePhaseOrder {
 		permissions[phase+suffix] = "allow"
 	}
 	// Review agents are global (not profile-scoped), so named profile
 	// orchestrators also need unsuffixed permissions to delegate to them.
-	for _, reviewAgent := range reviewAgentNames {
+	for _, reviewAgent := range opencode.ReviewPhases() {
 		permissions[reviewAgent] = "allow"
 	}
 	// JD agents are global (not profile-scoped) — always unsuffixed.
@@ -1023,6 +1025,70 @@ func TestExtractModelFromAgent_NoVariantDefaultsEmpty(t *testing.T) {
 	got := extractModelFromAgent(agentMap)
 	if got.Effort != "" {
 		t.Errorf("extractModelFromAgent Effort = %q, want empty string", got.Effort)
+	}
+}
+
+// TestExtractModelFromAgent_OpenRouterFreeModel verifies that extractModelFromAgent
+// correctly parses OpenRouter free-model specs like "openrouter/qwen/qwen3.6-plus:free".
+// The first separator is "/" (not ":"), so the provider should be "openrouter" and
+// the model should be "qwen/qwen3.6-plus:free".
+func TestExtractModelFromAgent_OpenRouterFreeModel(t *testing.T) {
+	agentMap := map[string]any{
+		"model": "openrouter/qwen/qwen3.6-plus:free",
+	}
+	got := extractModelFromAgent(agentMap)
+	if got.ProviderID != "openrouter" {
+		t.Errorf("extractModelFromAgent ProviderID = %q, want %q", got.ProviderID, "openrouter")
+	}
+	if got.ModelID != "qwen/qwen3.6-plus:free" {
+		t.Errorf("extractModelFromAgent ModelID = %q, want %q", got.ModelID, "qwen/qwen3.6-plus:free")
+	}
+}
+
+// TestDetectProfiles_OpenRouterFreeModel verifies that DetectProfiles
+// correctly parses OpenRouter free-model specs when detecting profiles.
+func TestDetectProfiles_OpenRouterFreeModel(t *testing.T) {
+	dir := t.TempDir()
+	settingsPath := filepath.Join(dir, "opencode.json")
+
+	content := `{
+  "agent": {
+    "sdd-orchestrator-openr": { "mode": "primary", "model": "openrouter/qwen/qwen3.6-plus:free" },
+    "sdd-apply-openr": { "mode": "subagent", "model": "openrouter/qwen/qwen3.6-plus:free" }
+  }
+}`
+	if err := os.WriteFile(settingsPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("write settings: %v", err)
+	}
+
+	profiles, err := DetectProfiles(settingsPath)
+	if err != nil {
+		t.Fatalf("DetectProfiles() error = %v", err)
+	}
+	if len(profiles) != 1 {
+		t.Fatalf("DetectProfiles() returned %d profiles, want 1", len(profiles))
+	}
+
+	p := profiles[0]
+	if p.Name != "openr" {
+		t.Errorf("Profile.Name = %q, want %q", p.Name, "openr")
+	}
+	if p.OrchestratorModel.ProviderID != "openrouter" {
+		t.Errorf("OrchestratorModel.ProviderID = %q, want %q", p.OrchestratorModel.ProviderID, "openrouter")
+	}
+	if p.OrchestratorModel.ModelID != "qwen/qwen3.6-plus:free" {
+		t.Errorf("OrchestratorModel.ModelID = %q, want %q", p.OrchestratorModel.ModelID, "qwen/qwen3.6-plus:free")
+	}
+
+	m, ok := p.PhaseAssignments["sdd-apply"]
+	if !ok {
+		t.Fatal("sdd-apply missing from PhaseAssignments")
+	}
+	if m.ProviderID != "openrouter" {
+		t.Errorf("PhaseAssignments[sdd-apply] ProviderID = %q, want %q", m.ProviderID, "openrouter")
+	}
+	if m.ModelID != "qwen/qwen3.6-plus:free" {
+		t.Errorf("PhaseAssignments[sdd-apply] ModelID = %q, want %q", m.ModelID, "qwen/qwen3.6-plus:free")
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gentleman-programming/gentle-ai/internal/assets"
 	"github.com/gentleman-programming/gentle-ai/internal/components/filemerge"
 	"github.com/gentleman-programming/gentle-ai/internal/model"
 	"github.com/gentleman-programming/gentle-ai/internal/opencode"
@@ -64,13 +63,6 @@ var profilePhaseOrder = []string{
 	"sdd-verify",
 	"sdd-archive",
 	"sdd-onboard",
-}
-
-var reviewAgentNames = []string{
-	"review-risk",
-	"review-readability",
-	"review-reliability",
-	"review-resilience",
 }
 
 // ProfilePhaseOrder returns the ordered list of SDD sub-agent phase names.
@@ -237,17 +229,8 @@ func extractModelFromAgent(agentMap map[string]any) model.ModelAssignment {
 		return model.ModelAssignment{}
 	}
 
-	// Try colon separator first (standard: "anthropic:claude-sonnet-4"), then slash.
-	idx := strings.Index(modelStr, ":")
-	if idx <= 0 {
-		idx = strings.Index(modelStr, "/")
-	}
-	if idx <= 0 {
-		return model.ModelAssignment{}
-	}
-	providerID := modelStr[:idx]
-	modelID := modelStr[idx+1:]
-	if modelID == "" {
+	providerID, modelID, ok := model.SplitModelSpec(modelStr)
+	if !ok {
 		return model.ModelAssignment{}
 	}
 	effort, _ := agentMap["variant"].(string)
@@ -284,7 +267,9 @@ func GenerateProfileOverlay(profile model.Profile, homeDir string, codeGraphGuid
 
 	// Orchestrator entry
 	taskPerms := map[string]any{
-		"*": "deny",
+		"*":       "deny",
+		"general": "allow",
+		"explore": "allow",
 	}
 	for _, phase := range profilePhaseOrder {
 		taskPerms[phase+suffix] = "allow"
@@ -299,10 +284,10 @@ func GenerateProfileOverlay(profile model.Profile, homeDir string, codeGraphGuid
 			taskPerms[jd] = "allow"
 		}
 	}
-	// Add 4R review agent permissions (global, not profile-scoped).
+	// Add native review agent permissions (global, not profile-scoped).
 	// The base overlays define these shared review agents; named profiles only
 	// need permission to delegate to the unsuffixed global agent keys.
-	for _, reviewAgent := range reviewAgentNames {
+	for _, reviewAgent := range opencode.ReviewPhases() {
 		taskPerms[reviewAgent] = "allow"
 	}
 
@@ -531,7 +516,7 @@ func jdProfileAgentEntry(jd string) map[string]any {
 //  4. Replaces bare sub-agent references (e.g. sdd-init) with suffixed ones
 //     (e.g. sdd-init-{name}) in the prompt text
 func buildProfileOrchestratorPrompt(profile model.Profile) (string, error) {
-	base := assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))
+	base := renderSDDOrchestratorAsset(model.AgentOpenCode)
 
 	// Extract section based on model capability (derived from model name).
 	capability := "capable"
@@ -600,15 +585,7 @@ func appendProfileJDDelegationOverrides(content string, profile model.Profile) s
 // and <!-- section:model-small --> markers. If no matching section is found,
 // the full content is returned.
 func extractModelSection(content, capability string) string {
-	openMarker := "<!-- section:model-" + capability + " -->"
-	closeMarker := "<!-- /section:model-" + capability + " -->"
-	start := strings.Index(content, openMarker)
-	end := strings.Index(content, closeMarker)
-	if start == -1 || end == -1 || end <= start {
-		return content
-	}
-	afterOpen := start + len(openMarker)
-	return strings.TrimLeft(content[afterOpen:end], " \t\r\n")
+	return filemerge.ExtractHTMLCommentSection(content, "model-"+capability)
 }
 
 // replacePhaseRef replaces occurrences of 'from' with 'to' in content.

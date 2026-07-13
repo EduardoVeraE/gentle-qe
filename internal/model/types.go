@@ -199,13 +199,17 @@ const (
 	EventPreCommit    TriggerEvent = "pre-commit"
 	EventPrePush      TriggerEvent = "pre-push"
 	EventPrePR        TriggerEvent = "pre-pr"
+	EventRelease      TriggerEvent = "release"
 	EventPostSDDPhase TriggerEvent = "post-sdd-phase"
 	EventOnCI         TriggerEvent = "on-ci"
 	EventOnSchedule   TriggerEvent = "on-schedule"
 )
 
-// TriggerMode is the recommendation strength. Organic-only: "strong" is the
-// strongest level — a firm recommendation, NOT a hard gate.
+// TriggerMode selects the routing wording for a binding in the 4R v2
+// deterministic triage. "advisory" renders the everyday router (trivial diffs
+// skip review; standard diffs run exactly ONE lens); "strong" renders a
+// direct run directive whenever the condition matches. Neither mode is a hard
+// gate: gentle-ai renders instruction text and never blocks the workflow.
 type TriggerMode string
 
 const (

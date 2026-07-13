@@ -1,6 +1,7 @@
 package sddstatus
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/gentleman-programming/gentle-ai/internal/reviewtransaction"
 )
 
 const SchemaName = "gentle-ai.sdd-status"
@@ -55,13 +58,14 @@ const (
 type Phase string
 
 const (
-	PhasePropose Phase = "propose"
-	PhaseSpec    Phase = "spec"
-	PhaseDesign  Phase = "design"
-	PhaseTasks   Phase = "tasks"
-	PhaseApply   Phase = "apply"
-	PhaseVerify  Phase = "verify"
-	PhaseArchive Phase = "archive"
+	PhasePropose   Phase = "propose"
+	PhaseSpec      Phase = "spec"
+	PhaseDesign    Phase = "design"
+	PhaseTasks     Phase = "tasks"
+	PhaseApply     Phase = "apply"
+	PhaseVerify    Phase = "verify"
+	PhaseRemediate Phase = "remediate"
+	PhaseArchive   Phase = "archive"
 )
 
 type ArtifactPaths struct {
@@ -71,6 +75,12 @@ type ArtifactPaths struct {
 	Tasks         []string `json:"tasks"`
 	ApplyProgress []string `json:"applyProgress"`
 	VerifyReport  []string `json:"verifyReport"`
+	ReviewPolicy  []string `json:"reviewPolicy"`
+	ReviewLedger  []string `json:"reviewLedger"`
+	ReviewReceipt []string `json:"reviewReceipt"`
+	ReviewBundle  []string `json:"reviewBundle"`
+	ReviewContext []string `json:"reviewContext"`
+	ReviewState   []string `json:"reviewState"`
 }
 
 type PlanningHome struct {
@@ -110,29 +120,48 @@ type Relationships struct {
 }
 
 type PhaseInstructions struct {
-	Apply   []string `json:"apply"`
-	Verify  []string `json:"verify"`
-	Archive []string `json:"archive"`
+	Apply     []string `json:"apply"`
+	Verify    []string `json:"verify"`
+	Remediate []string `json:"remediate"`
+	Archive   []string `json:"archive"`
+}
+
+type RemediationState struct {
+	Required               bool   `json:"required"`
+	Complete               bool   `json:"complete"`
+	FailedEvidenceRevision string `json:"failedEvidenceRevision"`
+	LineageID              string `json:"lineageId"`
+	Generation             int    `json:"generation"`
+	FixBatch               int    `json:"fixBatch"`
+	Reason                 string `json:"reason"`
+}
+
+type ReviewGateState struct {
+	Result reviewtransaction.GateResult `json:"result"`
+	Reason string                       `json:"reason"`
 }
 
 type Status struct {
-	SchemaName        string                   `json:"schemaName"`
-	SchemaVersion     int                      `json:"schemaVersion"`
-	ChangeName        *string                  `json:"changeName"`
-	ArtifactStore     ArtifactStore            `json:"artifactStore"`
-	PlanningHome      PlanningHome             `json:"planningHome"`
-	ChangeRoot        *string                  `json:"changeRoot"`
-	ArtifactPaths     ArtifactPaths            `json:"artifactPaths"`
-	ContextFiles      ArtifactPaths            `json:"contextFiles"`
-	Artifacts         map[string]ArtifactState `json:"artifacts"`
-	TaskProgress      TaskProgress             `json:"taskProgress"`
-	Dependencies      Dependencies             `json:"dependencies"`
-	ApplyState        ApplyState               `json:"applyState"`
-	ActionContext     ActionContext            `json:"actionContext"`
-	Relationships     Relationships            `json:"relationships"`
-	PhaseInstructions *PhaseInstructions       `json:"phaseInstructions,omitempty"`
-	NextRecommended   string                   `json:"nextRecommended"`
-	BlockedReasons    []string                 `json:"blockedReasons"`
+	SchemaName        string                         `json:"schemaName"`
+	SchemaVersion     int                            `json:"schemaVersion"`
+	ChangeName        *string                        `json:"changeName"`
+	ArtifactStore     ArtifactStore                  `json:"artifactStore"`
+	PlanningHome      PlanningHome                   `json:"planningHome"`
+	ChangeRoot        *string                        `json:"changeRoot"`
+	ArtifactPaths     ArtifactPaths                  `json:"artifactPaths"`
+	ContextFiles      ArtifactPaths                  `json:"contextFiles"`
+	Artifacts         map[string]ArtifactState       `json:"artifacts"`
+	TaskProgress      TaskProgress                   `json:"taskProgress"`
+	Dependencies      Dependencies                   `json:"dependencies"`
+	ApplyState        ApplyState                     `json:"applyState"`
+	ActionContext     ActionContext                  `json:"actionContext"`
+	Relationships     Relationships                  `json:"relationships"`
+	RemediationState  RemediationState               `json:"remediationState"`
+	ReviewGate        *ReviewGateState               `json:"reviewGate,omitempty"`
+	ReviewTransaction *reviewtransaction.Transaction `json:"reviewTransaction,omitempty"`
+	PhaseInstructions *PhaseInstructions             `json:"phaseInstructions,omitempty"`
+	NextRecommended   string                         `json:"nextRecommended"`
+	BlockedReasons    []string                       `json:"blockedReasons"`
 }
 
 type ResolveOptions struct {
@@ -256,24 +285,79 @@ func Resolve(options ResolveOptions) (Status, error) {
 		"tasks":         singleArtifactState(artifactPaths.Tasks),
 		"applyProgress": singleArtifactState(artifactPaths.ApplyProgress),
 		"verifyReport":  singleArtifactState(artifactPaths.VerifyReport),
+		"reviewLedger":  singleArtifactState(artifactPaths.ReviewLedger),
+		"reviewReceipt": singleArtifactState(artifactPaths.ReviewReceipt),
+		"reviewBundle":  singleArtifactState(artifactPaths.ReviewBundle),
+		"reviewContext": singleArtifactState(artifactPaths.ReviewContext),
+		"reviewState":   singleArtifactState(artifactPaths.ReviewState),
 	}
 	taskProgress, err := countTaskProgress(firstPath(artifactPaths.Tasks))
 	if err != nil {
 		return Status{}, err
 	}
 
-	verifyReportPassing, err := reportIsClearlyPassing(firstPath(artifactPaths.VerifyReport))
+	specCounts, err := readSpecCounts(artifactPaths.Specs)
 	if err != nil {
 		return Status{}, err
 	}
+	verifyResult, err := readVerifyResult(firstPath(artifactPaths.VerifyReport), specCounts)
+	if err != nil {
+		return Status{}, err
+	}
+	reviewState, reviewStateReason := readReviewTransaction(firstPath(artifactPaths.ReviewState), "")
 	coreReady := artifacts["proposal"] == ArtifactDone && artifacts["specs"] == ArtifactDone && artifacts["design"] == ArtifactDone && artifacts["tasks"] == ArtifactDone && taskProgress.Total > 0
 	applyState := resolveApplyState(coreReady, taskProgress)
 	blockedReasons := artifactBlockedReasons(artifacts, taskProgress)
-	if artifacts["verifyReport"] == ArtifactDone && !verifyReportPassing && applyState != ApplyReady {
-		blockedReasons = append(blockedReasons, "verify-report.md is not clearly passing.")
+	remediationState := resolveBoundedRemediation(
+		artifacts["verifyReport"] == ArtifactDone && !verifyResult.Passing && applyState == ApplyAllDone,
+		verifyResult,
+		reviewState,
+		reviewStateReason,
+		readText(firstPath(artifactPaths.ApplyProgress)),
+	)
+	dependencies := resolveDependencies(artifacts, taskProgress, applyState, coreReady, verifyResult.Passing, remediationState.Complete)
+	nextRecommended := resolveNextRecommended(dependencies, applyState, artifacts["verifyReport"] == ArtifactDone, remediationState)
+	var boundGate *ReviewGateState
+	bindingPresent, bindingPathErr := bindingExists(context.Background(), workspaceRoot, changeName)
+	if bindingPathErr != nil {
+		return Status{}, bindingPathErr
 	}
-	dependencies := resolveDependencies(artifacts, taskProgress, applyState, coreReady, verifyReportPassing)
-	nextRecommended := resolveNextRecommended(dependencies, applyState, blockedReasons)
+	bridge := compactPreVerifyBridge{}
+	recoverable := authorityOnlyFailedReport(readText(firstPath(artifactPaths.VerifyReport)))
+	if bindingPresent {
+		_, evaluation, bindingErr := validateBoundReview(context.Background(), workspaceRoot, changeName)
+		if bindingErr == nil {
+			if applyState == ApplyAllDone && artifacts["verifyReport"] != ArtifactDone {
+				dependencies.Verify = DependencyReady
+				dependencies.Archive = DependencyBlocked
+				nextRecommended = "verify"
+			}
+			boundGate = &ReviewGateState{Result: evaluation.Result, Reason: "explicit bound compact authority exactly matches the current repository"}
+		} else {
+			dependencies.Verify = DependencyBlocked
+			dependencies.Archive = DependencyBlocked
+			nextRecommended = "resolve-review"
+			blockedReasons = append(blockedReasons, bindingErr.Error())
+		}
+	} else if applyState == ApplyAllDone && (artifacts["verifyReport"] != ArtifactDone || recoverable) && reviewState == nil {
+		fields, _ := authorityFailureFields(readText(firstPath(artifactPaths.VerifyReport)))
+		bridge = discoverCompactPreVerifyAuthority(context.Background(), workspaceRoot, changeName, fields["observed_authority_revision"])
+	}
+	if !bindingPresent && recoverable && bridge.Eligible && authorityChangedSinceReport(readText(firstPath(artifactPaths.VerifyReport)), bridge.Revision) {
+		dependencies.Verify = DependencyReady
+		dependencies.Archive = DependencyBlocked
+		nextRecommended = "verify"
+		remediationState = RemediationState{}
+	}
+	if remediationState.Reason != "" {
+		blockedReasons = append(blockedReasons, remediationState.Reason)
+	}
+	if !bindingPresent {
+		applyPreVerifyCompactBridgeRouting(&dependencies, &nextRecommended, &blockedReasons, applyState, artifacts["verifyReport"] == ArtifactDone, reviewState, bridge)
+	}
+	if !bindingPresent && !bridge.Eligible && !bridge.Relevant {
+		applyPreVerifyReviewRouting(&dependencies, &nextRecommended, &blockedReasons, applyState, artifacts["verifyReport"] == ArtifactDone, reviewState, reviewStateReason)
+	}
 
 	status := baseStatus(workspaceRoot, &changeName, &changeRoot, nextRecommended, blockedReasons)
 	status.ArtifactPaths = artifactPaths
@@ -282,11 +366,76 @@ func Resolve(options ResolveOptions) (Status, error) {
 	status.TaskProgress = taskProgress
 	status.Dependencies = dependencies
 	status.ApplyState = applyState
+	status.RemediationState = remediationState
+	status.ReviewTransaction = reviewState
+	if !bindingPresent {
+		applyReviewGate(
+			&status,
+			workspaceRoot,
+			firstPath(artifactPaths.ReviewReceipt),
+			"",
+		)
+	}
+	if boundGate != nil {
+		status.ReviewGate = boundGate
+	}
 	if options.IncludeInstructions {
 		instructions := renderPhaseInstructions(status)
 		status.PhaseInstructions = &instructions
 	}
 	return status, nil
+}
+
+func authorityOnlyFailedReport(report string) bool {
+	fields, ok := authorityFailureFields(report)
+	return ok && fields["authority_only_failure"] == "true" && fields["missing_review_authority"] == "true" &&
+		fields["substantive_failure"] == "false" && fields["command_failed"] == "false"
+}
+
+func authorityChangedSinceReport(report, revision string) bool {
+	fields, ok := authorityFailureFields(report)
+	return ok && fields["observed_authority_revision"] != revision
+}
+
+func authorityFailureFields(report string) (map[string]string, bool) {
+	const emptyOutputHash = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+	lines, end, reason := parseLeadingEnvelope(report)
+	if reason != "" {
+		return nil, false
+	}
+	allowed := map[string]bool{
+		"schema": true, "evidence_revision": true, "verdict": true, "blockers": true, "critical_findings": true,
+		"requirements": true, "scenarios": true, "test_command": true, "test_exit_code": true, "test_output_hash": true,
+		"build_command": true, "build_exit_code": true, "build_output_hash": true, "authority_only_failure": true,
+		"missing_review_authority": true, "substantive_failure": true, "command_failed": true, "observed_authority_revision": true,
+	}
+	fields, reason := parseScalarFields(lines[1:end], allowed, "authority failure")
+	if reason != "" || len(fields) != len(allowed) || fields["schema"] != VerifyResultSchema || fields["verdict"] != "fail" {
+		return nil, false
+	}
+	for _, field := range []string{"evidence_revision", "test_output_hash", "build_output_hash", "observed_authority_revision"} {
+		if !sha256IdentityPattern.MatchString(fields[field]) {
+			return nil, false
+		}
+	}
+	if fields["test_output_hash"] != emptyOutputHash || fields["build_output_hash"] != emptyOutputHash {
+		return nil, false
+	}
+	testExit, testOK := parseNonnegativeInt(fields["test_exit_code"])
+	buildExit, buildOK := parseNonnegativeInt(fields["build_exit_code"])
+	blockers, blockersOK := parseNonnegativeInt(fields["blockers"])
+	critical, criticalOK := parseNonnegativeInt(fields["critical_findings"])
+	if !testOK || !buildOK || !blockersOK || !criticalOK || blockers == 0 || critical == 0 || testExit != 125 || buildExit != 125 {
+		return nil, false
+	}
+	if _, ok := parseVerifyCompletion(fields["requirements"]); !ok {
+		return nil, false
+	}
+	if _, ok := parseVerifyCompletion(fields["scenarios"]); !ok || !isConcreteEvidence(fields["test_command"]) || !isConcreteEvidence(fields["build_command"]) {
+		return nil, false
+	}
+	return fields, true
 }
 
 func resolveEngramStatus(workspaceRoot string, requestedChange string, includeInstructions bool) (Status, bool, error) {
@@ -324,17 +473,33 @@ func resolveEngramStatus(workspaceRoot string, requestedChange string, includeIn
 		"tasks":         engramArtifactState(artifactsByType["tasks"]),
 		"applyProgress": engramArtifactState(artifactsByType["apply-progress"]),
 		"verifyReport":  engramArtifactState(artifactsByType["verify-report"]),
+		"reviewLedger":  engramArtifactState(artifactsByType["review/ledger"]),
+		"reviewPolicy":  engramArtifactState(artifactsByType["review/policy"]),
+		"reviewReceipt": engramArtifactState(artifactsByType["review/receipt"]),
+		"reviewBundle":  engramArtifactState(artifactsByType["review/chain-bundle"]),
+		"reviewContext": engramArtifactState(artifactsByType["review/gate-context"]),
+		"reviewState":   engramArtifactState(artifactsByType["review/transaction"]),
 	}
 	taskProgress := countTaskProgressText(artifactsByType["tasks"].Content)
-	verifyReportPassing := reportTextIsClearlyPassing(artifactsByType["verify-report"].Content)
+	specCounts := countSpecRequirementsAndScenarios([]string{artifactsByType["spec"].Content})
+	verifyResult := parseVerifyResult(artifactsByType["verify-report"].Content, specCounts)
+	reviewState, reviewStateReason := readReviewTransaction("", artifactsByType["review/transaction"].Content)
 	coreReady := artifacts["proposal"] == ArtifactDone && artifacts["specs"] == ArtifactDone && artifacts["design"] == ArtifactDone && artifacts["tasks"] == ArtifactDone && taskProgress.Total > 0
 	applyState := resolveApplyState(coreReady, taskProgress)
 	blockedReasons := artifactBlockedReasons(artifacts, taskProgress)
-	if artifacts["verifyReport"] == ArtifactDone && !verifyReportPassing && applyState != ApplyReady {
-		blockedReasons = append(blockedReasons, "verify-report.md is not clearly passing.")
+	remediationState := resolveBoundedRemediation(
+		artifacts["verifyReport"] == ArtifactDone && !verifyResult.Passing && applyState == ApplyAllDone,
+		verifyResult,
+		reviewState,
+		reviewStateReason,
+		artifactsByType["apply-progress"].Content,
+	)
+	if remediationState.Reason != "" {
+		blockedReasons = append(blockedReasons, remediationState.Reason)
 	}
-	dependencies := resolveDependencies(artifacts, taskProgress, applyState, coreReady, verifyReportPassing)
-	nextRecommended := resolveNextRecommended(dependencies, applyState, blockedReasons)
+	dependencies := resolveDependencies(artifacts, taskProgress, applyState, coreReady, verifyResult.Passing, remediationState.Complete)
+	nextRecommended := resolveNextRecommended(dependencies, applyState, artifacts["verifyReport"] == ArtifactDone, remediationState)
+	applyPreVerifyReviewRouting(&dependencies, &nextRecommended, &blockedReasons, applyState, artifacts["verifyReport"] == ArtifactDone, reviewState, reviewStateReason)
 
 	changeRoot := fmt.Sprintf("engram:sdd/%s", changeName)
 	status := baseStatus(workspaceRoot, &changeName, &changeRoot, nextRecommended, blockedReasons)
@@ -346,6 +511,14 @@ func resolveEngramStatus(workspaceRoot string, requestedChange string, includeIn
 	status.TaskProgress = taskProgress
 	status.Dependencies = dependencies
 	status.ApplyState = applyState
+	status.RemediationState = remediationState
+	status.ReviewTransaction = reviewState
+	applyReviewGate(
+		&status,
+		workspaceRoot,
+		"",
+		artifactsByType["review/receipt"].Content,
+	)
 	if includeInstructions {
 		instructions := renderPhaseInstructions(status)
 		status.PhaseInstructions = &instructions
@@ -358,6 +531,49 @@ func blockedEngramStatus(workspaceRoot string, changeName *string, next string, 
 	status.ArtifactStore = ArtifactStoreEngram
 	status.PlanningHome = PlanningHome{Mode: ActionModeRepoLocal, Path: "engram:sdd"}
 	return status
+}
+
+func applyPreVerifyReviewRouting(dependencies *Dependencies, next *string, blockedReasons *[]string, applyState ApplyState, verifyReportDone bool, transaction *reviewtransaction.Transaction, transactionReason string) {
+	if applyState != ApplyAllDone || verifyReportDone {
+		return
+	}
+	if transaction == nil {
+		dependencies.Verify = DependencyBlocked
+		*next = "review"
+		*blockedReasons = append(*blockedReasons, "explicit bounded review/start(target) is required after apply before independent final verification: "+transactionReason)
+		return
+	}
+	switch transaction.State {
+	case reviewtransaction.StateReadyFinalVerification, reviewtransaction.StateFinalVerifying:
+		dependencies.Verify = DependencyReady
+		*next = "verify"
+	case reviewtransaction.StateEscalated, reviewtransaction.StateApproved:
+		dependencies.Verify = DependencyBlocked
+		*next = "resolve-review"
+		*blockedReasons = append(*blockedReasons, fmt.Sprintf("review transaction state %q cannot start missing final verification evidence", transaction.State))
+	default:
+		dependencies.Verify = DependencyBlocked
+		*next = "review"
+		*blockedReasons = append(*blockedReasons, fmt.Sprintf("bounded review transaction is %q; continue it without creating a new budget before final verification", transaction.State))
+	}
+}
+
+func applyPreVerifyCompactBridgeRouting(dependencies *Dependencies, next *string, blockedReasons *[]string, applyState ApplyState, verifyReportDone bool, transaction *reviewtransaction.Transaction, bridge compactPreVerifyBridge) {
+	if applyState != ApplyAllDone || verifyReportDone || transaction != nil {
+		return
+	}
+	if bridge.Eligible {
+		dependencies.Verify = DependencyReady
+		dependencies.Archive = DependencyBlocked
+		*next = "verify"
+		return
+	}
+	if bridge.Relevant {
+		dependencies.Verify = DependencyBlocked
+		dependencies.Archive = DependencyBlocked
+		*next = "resolve-review"
+		*blockedReasons = append(*blockedReasons, bridge.Reason)
+	}
 }
 
 func shouldTryEngram(workspaceRoot string) bool {
@@ -443,7 +659,7 @@ func projectFromGitConfig(content string) string {
 	return ""
 }
 
-var engramTitlePattern = regexp.MustCompile(`^sdd/([^/]+)/(proposal|spec|design|tasks|apply-progress|verify-report|state)$`)
+var engramTitlePattern = regexp.MustCompile(`^sdd/([^/]+)/(proposal|spec|design|tasks|apply-progress|verify-report|review/(?:transaction|policy|ledger|receipt|chain-bundle|gate-context)|state)$`)
 
 func collectEngramChanges(observations []engramObservation, project string) []string {
 	seen := map[string]bool{}
@@ -503,6 +719,24 @@ func engramArtifactPaths(changeName string, artifacts map[string]engramObservati
 	}
 	if _, ok := artifacts["verify-report"]; ok {
 		paths.VerifyReport = []string{fmt.Sprintf("sdd/%s/verify-report", changeName)}
+	}
+	if _, ok := artifacts["review/ledger"]; ok {
+		paths.ReviewLedger = []string{fmt.Sprintf("sdd/%s/review/ledger", changeName)}
+	}
+	if _, ok := artifacts["review/policy"]; ok {
+		paths.ReviewPolicy = []string{fmt.Sprintf("sdd/%s/review/policy", changeName)}
+	}
+	if _, ok := artifacts["review/receipt"]; ok {
+		paths.ReviewReceipt = []string{fmt.Sprintf("sdd/%s/review/receipt", changeName)}
+	}
+	if _, ok := artifacts["review/chain-bundle"]; ok {
+		paths.ReviewBundle = []string{fmt.Sprintf("sdd/%s/review/chain-bundle", changeName)}
+	}
+	if _, ok := artifacts["review/gate-context"]; ok {
+		paths.ReviewContext = []string{fmt.Sprintf("sdd/%s/review/gate-context", changeName)}
+	}
+	if _, ok := artifacts["review/transaction"]; ok {
+		paths.ReviewState = []string{fmt.Sprintf("sdd/%s/review/transaction", changeName)}
 	}
 	return paths
 }
@@ -603,6 +837,15 @@ func RenderDispatcherMarkdown(status Status) string {
 		for _, reason := range status.BlockedReasons {
 			lines = append(lines, fmt.Sprintf("- %s", reason))
 		}
+	}
+	if status.NextRecommended == "review" {
+		lines = append(lines,
+			"",
+			"### Next Review Operation",
+			fmt.Sprintf("- Run `gentle-ai review start --cwd %q`; the facade derives intended untracked scope, lineage, tier, lenses, and correction budget from live Git.", status.ActionContext.WorkspaceRoot),
+			"- Pass reviewer result and verification evidence to `gentle-ai review finalize`; do not hand-author lifecycle operation JSON.",
+			"- Continue discovered authority instead of starting another budget, and reconcile existing terminal mirrors only after `gentle-ai review validate --gate post-apply` allows.",
+		)
 	}
 
 	if phase, ok := nextRecommendedPhase(status.NextRecommended); ok {
@@ -717,6 +960,11 @@ func baseStatus(workspaceRoot string, changeName *string, changeRoot *string, ne
 			"tasks":         ArtifactMissing,
 			"applyProgress": ArtifactMissing,
 			"verifyReport":  ArtifactMissing,
+			"reviewLedger":  ArtifactMissing,
+			"reviewReceipt": ArtifactMissing,
+			"reviewBundle":  ArtifactMissing,
+			"reviewContext": ArtifactMissing,
+			"reviewState":   ArtifactMissing,
 		},
 		TaskProgress: TaskProgress{},
 		Dependencies: Dependencies{
@@ -753,6 +1001,12 @@ func resolveArtifactPaths(changeRoot string) (ArtifactPaths, error) {
 	paths.Tasks = existingPath(filepath.Join(changeRoot, "tasks.md"))
 	paths.ApplyProgress = existingPath(filepath.Join(changeRoot, "apply-progress.md"))
 	paths.VerifyReport = existingPath(filepath.Join(changeRoot, "verify-report.md"))
+	paths.ReviewLedger = existingPath(filepath.Join(changeRoot, "reviews", "ledger.json"))
+	paths.ReviewPolicy = existingPath(filepath.Join(changeRoot, "reviews", "policy.md"))
+	paths.ReviewReceipt = existingPath(filepath.Join(changeRoot, "reviews", "receipt.json"))
+	paths.ReviewBundle = existingPath(filepath.Join(changeRoot, "reviews", "chain-bundle.json"))
+	paths.ReviewContext = existingPath(filepath.Join(changeRoot, "reviews", "gate-context.json"))
+	paths.ReviewState = existingPath(filepath.Join(changeRoot, "reviews", "transaction.json"))
 
 	specFiles, err := findSpecFiles(filepath.Join(changeRoot, "specs"))
 	if err != nil {
@@ -770,6 +1024,12 @@ func emptyArtifactPaths() ArtifactPaths {
 		Tasks:         []string{},
 		ApplyProgress: []string{},
 		VerifyReport:  []string{},
+		ReviewLedger:  []string{},
+		ReviewPolicy:  []string{},
+		ReviewReceipt: []string{},
+		ReviewBundle:  []string{},
+		ReviewContext: []string{},
+		ReviewState:   []string{},
 	}
 }
 
@@ -1014,7 +1274,7 @@ func resolveApplyState(coreReady bool, taskProgress TaskProgress) ApplyState {
 	return ApplyReady
 }
 
-func resolveDependencies(artifacts map[string]ArtifactState, taskProgress TaskProgress, applyState ApplyState, coreReady bool, verifyReportPassing bool) Dependencies {
+func resolveDependencies(artifacts map[string]ArtifactState, taskProgress TaskProgress, applyState ApplyState, coreReady bool, verifyReportPassing bool, remediationComplete bool) Dependencies {
 	dependencies := Dependencies{
 		Proposal: artifactDependency(artifacts["proposal"]),
 		Specs:    artifactDependency(artifacts["specs"]),
@@ -1030,11 +1290,10 @@ func resolveDependencies(artifacts map[string]ArtifactState, taskProgress TaskPr
 		dependencies.Apply = DependencyAllDone
 	}
 
-	applyProgressDone := artifacts["applyProgress"] == ArtifactDone
 	verifyReportDone := artifacts["verifyReport"] == ArtifactDone
 	if verifyReportDone && coreReady && taskProgress.AllComplete && verifyReportPassing {
 		dependencies.Verify = DependencyAllDone
-	} else if coreReady && (applyState == ApplyAllDone || applyProgressDone) {
+	} else if coreReady && applyState == ApplyAllDone && (!verifyReportDone || remediationComplete) {
 		dependencies.Verify = DependencyReady
 	}
 	if dependencies.Verify == DependencyAllDone && taskProgress.AllComplete {
@@ -1050,13 +1309,19 @@ func artifactDependency(state ArtifactState) DependencyState {
 	return DependencyBlocked
 }
 
-func resolveNextRecommended(dependencies Dependencies, applyState ApplyState, _ []string) string {
+func resolveNextRecommended(dependencies Dependencies, applyState ApplyState, verifyReportDone bool, remediation RemediationState) string {
 	// Prefer apply over verify when there is still remaining implementation work.
 	if dependencies.Apply == DependencyReady {
 		return string(PhaseApply)
 	}
 	if dependencies.Verify == DependencyReady {
 		return string(PhaseVerify)
+	}
+	if applyState == ApplyAllDone && verifyReportDone && dependencies.Verify != DependencyAllDone {
+		if remediation.Required {
+			return "remediate"
+		}
+		return "resolve-review"
 	}
 	if dependencies.Verify == DependencyAllDone && applyState == ApplyAllDone {
 		return string(PhaseArchive)
@@ -1099,7 +1364,13 @@ func renderPhaseInstructions(status Status) PhaseInstructions {
 			fmt.Sprintf("Change: %s", change),
 			fmt.Sprintf("State: %s", status.Dependencies.Verify),
 			"Verify implementation against proposal, specs, design, and task completion.",
-			"Incomplete tasks remain archive blockers even when apply-progress.md exists.",
+			"Run final verification only after every task is complete; apply-progress never makes final verification ready.",
+		},
+		Remediate: []string{
+			fmt.Sprintf("Change: %s", change),
+			"Remediation is allowed only when the persisted review transaction has remaining mode-specific budget.",
+			"Bind focused tests, runtime harness evidence, and rollback evidence to the exact failed evidence revision.",
+			"A bare remediation envelope or stale failed revision never completes remediation.",
 		},
 		Archive: []string{
 			fmt.Sprintf("Change: %s", change),
@@ -1111,7 +1382,7 @@ func renderPhaseInstructions(status Status) PhaseInstructions {
 
 func nextRecommendedPhase(next string) (Phase, bool) {
 	switch Phase(next) {
-	case PhasePropose, PhaseSpec, PhaseDesign, PhaseTasks, PhaseApply, PhaseVerify, PhaseArchive:
+	case PhasePropose, PhaseSpec, PhaseDesign, PhaseTasks, PhaseApply, PhaseVerify, PhaseRemediate, PhaseArchive:
 		return Phase(next), true
 	default:
 		return "", false
@@ -1131,6 +1402,8 @@ func dependencyForPhase(status Status, phase Phase) DependencyState {
 	case PhaseApply:
 		return status.Dependencies.Apply
 	case PhaseVerify:
+		return status.Dependencies.Verify
+	case PhaseRemediate:
 		return status.Dependencies.Verify
 	case PhaseArchive:
 		return status.Dependencies.Archive
@@ -1153,6 +1426,8 @@ func instructionsForPhase(status Status, phase Phase) []string {
 		return instructions.Apply
 	case PhaseVerify:
 		return instructions.Verify
+	case PhaseRemediate:
+		return instructions.Remediate
 	case PhaseArchive:
 		return instructions.Archive
 	default:
