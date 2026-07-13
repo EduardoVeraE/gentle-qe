@@ -4246,6 +4246,9 @@ func (m Model) shouldShowSDDModeScreen() bool {
 // be shown in the navigation flow. It requires only that the SDD component is
 // selected — the screen is agent-agnostic.
 func (m Model) shouldShowStrictTDDScreen() bool {
+	if qeSuppressStrictTDD() { // overlay Gentle-QE (ancla qe-overlay)
+		return false
+	}
 	return hasSelectedComponent(m.Selection.Components, model.ComponentSDD)
 }
 

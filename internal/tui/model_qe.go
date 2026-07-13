@@ -56,6 +56,15 @@ func qeSuppressOpenCodePlugins() bool {
 	return model.QEInstallerFlow
 }
 
+// qeSuppressStrictTDD reports whether the QE build hides the Strict TDD Mode
+// screen from its call-site guard (shouldShowStrictTDDScreen). Always true for
+// the QE build, so the screen is skipped and Selection.StrictTDD stays at its
+// zero value (false / OFF). An explicit CLI `--strict-tdd` is still respected
+// upstream — only the QE TUI stops offering the choice.
+func qeSuppressStrictTDD() bool {
+	return model.QEInstallerFlow
+}
+
 // qeWelcomeCanonicalCursor remaps a collapsed Welcome menu cursor position
 // (0..6, the 7 QE-essential entries returned by qeWelcomeOptions) to the
 // canonical index the untouched upstream confirmSelection ScreenWelcome

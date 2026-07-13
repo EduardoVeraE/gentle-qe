@@ -153,6 +153,10 @@
     },
     {
       "file": "internal/tui/model.go",
+      "mustContain": "qeSuppressStrictTDD"
+    },
+    {
+      "file": "internal/tui/model.go",
       "mustContain": "qeWelcomeCanonicalCursor"
     },
     {
