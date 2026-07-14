@@ -201,7 +201,7 @@
     },
     {
       "file": "internal/tui/model.go",
-      "mustContain": "qeAutoSelectDevFullStackPreset"
+      "mustContain": "qeAutoSelectPersonaPreset"
     },
     {
       "file": "internal/cli/validate.go",
