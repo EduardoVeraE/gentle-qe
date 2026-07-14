@@ -42,6 +42,8 @@ scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket
 scoop install gentle-qe
 ```
 
+> **Short aliases.** On macOS/Linux (Homebrew), `gentle-qe` is also installed as `evqe` and `qe`, so every command below works under any of the three names. On Windows (Scoop) only `gentle-qe` is created; to get a short alias, add one to your PowerShell profile, e.g. `Set-Alias evqe gentle-qe`.
+
 ---
 
 ## Basic Usage
