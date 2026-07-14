@@ -160,6 +160,54 @@ func TestQEInstallerFlow_StrictTDDScreenHidden(t *testing.T) {
 	}
 }
 
+// TestQEInstallerFlow_PersonaAutoSelectsPresetAndSkipsPresetScreen asserts that
+// in the QE build BOTH QE personas skip the preset screen: confirming the
+// persona in ScreenPersona jumps straight to ScreenDependencyTree with the
+// persona's mapped preset already applied (SDET → QE SDET Full, Dev FullStack →
+// dev foundation skills). This is the regression guard for qeAutoSelectPersonaPreset.
+func TestQEInstallerFlow_PersonaAutoSelectsPresetAndSkipsPresetScreen(t *testing.T) {
+	enableQESeam(t)
+
+	cases := []struct {
+		persona model.PersonaID
+		preset  model.PresetID
+	}{
+		{model.PersonaSDET, model.PresetQESDET},
+		{model.PersonaDevFullStack, model.PresetDevFullStack},
+	}
+
+	for _, tc := range cases {
+		t.Run(string(tc.persona), func(t *testing.T) {
+			m := NewModel(system.DetectionResult{}, "dev")
+			m.Screen = ScreenPersona
+			m.Cursor = personaCursor(t, tc.persona)
+
+			state := applyFlowAction(t, m, flowAction{key: tea.KeyMsg{Type: tea.KeyEnter}})
+
+			if state.Screen != ScreenDependencyTree {
+				t.Fatalf("persona %q: Screen = %v, want ScreenDependencyTree (preset screen skipped)", tc.persona, state.Screen)
+			}
+			if state.Selection.Preset != tc.preset {
+				t.Fatalf("persona %q: Selection.Preset = %q, want %q", tc.persona, state.Selection.Preset, tc.preset)
+			}
+			if state.Selection.Persona != tc.persona {
+				t.Fatalf("persona %q: Selection.Persona = %q, want %q", tc.persona, state.Selection.Persona, tc.persona)
+			}
+		})
+	}
+}
+
+func personaCursor(t *testing.T, persona model.PersonaID) int {
+	t.Helper()
+	for idx, option := range screens.PersonaOptions() {
+		if option == persona {
+			return idx
+		}
+	}
+	t.Fatalf("persona %q not found in PersonaOptions()", persona)
+	return 0
+}
+
 // TestQEInstallerFlow_WelcomeCollapsedQuitDispatchesQuit drives the REAL
 // Update() loop (not qeWelcomeCanonicalCursor directly) with the cursor on
 // the collapsed Welcome menu's last entry ("Quit", collapsed index 6) and

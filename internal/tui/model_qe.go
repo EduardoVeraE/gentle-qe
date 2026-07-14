@@ -122,26 +122,41 @@ func qeWelcomeCanonicalCursor(m Model, collapsed int) int {
 	return canonical
 }
 
-// qeAutoSelectDevFullStackPreset couples persona→preset in the QE build ONLY:
-// when the user picks the Dev FullStack persona, it fixes that persona's preset
-// (upstream foundationSkills) and jumps straight to the install-plan screen,
-// skipping the preset picker and the intermediate pickers the QE build already
-// suppresses (qeFilterPickerFlow / qeSuppress*). It mirrors the piOnly shortcut
-// in confirmSelection's ScreenAgents case (model.go).
+// qePersonaAutoPreset maps each QE persona to the preset it auto-selects. Both
+// QE personas skip the preset picker entirely: SDET installs the full SDET
+// stack (PresetQESDET), Dev FullStack the upstream foundation skills
+// (PresetDevFullStack). The QE-simplified TUI never shows the preset screen —
+// choosing the persona is the single install decision. The other QE presets
+// (Front/API/Perf) remain reachable via the CLI --preset flag.
+var qePersonaAutoPreset = map[model.PersonaID]model.PresetID{
+	model.PersonaSDET:         model.PresetQESDET,
+	model.PersonaDevFullStack: model.PresetDevFullStack,
+}
+
+// qeAutoSelectPersonaPreset couples persona→preset in the QE build ONLY: when
+// the user picks a QE persona, it fixes that persona's preset and jumps
+// straight to the install-plan screen, skipping the preset picker and the
+// intermediate pickers the QE build already suppresses (qeFilterPickerFlow /
+// qeSuppress*). It mirrors the piOnly shortcut in confirmSelection's
+// ScreenAgents case (model.go).
 //
 // Returns (m, true) when the shortcut applied; (m, false) when it does not
-// apply (a different persona, or seam OFF), leaving the normal ScreenPreset
-// flow untouched — so SDET keeps choosing its preset as before.
+// apply (a non-QE persona, or seam OFF), leaving the normal ScreenPreset flow
+// untouched.
 //
 // This helper depends on the QE-build invariant "suppressed pickers → the
 // preset step falls straight through to DependencyTree"; if the QE build ever
-// re-enables an intermediate picker for dev personas, revisit this jump.
-func (m Model) qeAutoSelectDevFullStackPreset() (Model, bool) {
-	if !model.QEInstallerFlow || m.Selection.Persona != model.PersonaDevFullStack {
+// re-enables an intermediate picker, revisit this jump.
+func (m Model) qeAutoSelectPersonaPreset() (Model, bool) {
+	if !model.QEInstallerFlow {
 		return m, false
 	}
-	m.Selection.Preset = model.PresetDevFullStack
-	m.Selection.Components = componentsForPreset(model.PresetDevFullStack, m.Selection.Persona)
+	preset, ok := qePersonaAutoPreset[m.Selection.Persona]
+	if !ok {
+		return m, false
+	}
+	m.Selection.Preset = preset
+	m.Selection.Components = componentsForPreset(preset, m.Selection.Persona)
 	m.buildDependencyPlan()
 	m.setScreen(ScreenDependencyTree)
 	return m, true
