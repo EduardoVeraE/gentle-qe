@@ -695,6 +695,8 @@ func (s componentSyncStep) ID() string {
 func (s componentSyncStep) Run() error {
 	adapters := resolveAdapters(s.agents)
 
+	skills.SetQETestDesignSDD(qeUseTestDesignSDD(s.selection)) // overlay Gentle-QE (ancla qe-overlay)
+
 	switch s.component {
 	case model.ComponentEngram:
 		// Sync: inject MCP config + system prompt protocol only.

@@ -37,6 +37,14 @@ func isQEPreset(p model.PresetID) bool {
 	}
 }
 
+// qeUseTestDesignSDD decide, según la persona seleccionada, si la instalación
+// usa el SDD test-design QE (override ON) o el SDD de desarrollo upstream
+// (override OFF). Solo la persona SDET (perfil QE) recibe el test-design SDD;
+// las demás —incluida Dev FullStack— reciben el SDD de desarrollo original.
+func qeUseTestDesignSDD(sel model.Selection) bool {
+	return sel.Persona == model.PersonaSDET
+}
+
 // qeCouplePersonaPreset acopla la persona Dev FullStack a su preset dev en el
 // flujo CLI (paridad con el auto-select del TUI): si se pidió
 // --persona dev-fullstack SIN --preset explícito, deriva PresetDevFullStack

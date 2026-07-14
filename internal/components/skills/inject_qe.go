@@ -15,7 +15,28 @@ import (
 // the caller falls back to serving the existing upstream (dev) content
 // unchanged. This is how archive/onboard/init (no QE asset) stay
 // upstream-neutral even though they are SDD-gated.
+// qeTestDesignSDDEnabled gates the QE test-design SDD override. Default true
+// preserves the fork's historical behavior (override ON) for every caller that
+// does not opt out — including the direct-Inject tests in this package and the
+// production SDET install. The cli layer flips it per install according to the
+// selected persona (SetQETestDesignSDD): SDET keeps the QE test-design SDD;
+// dev personas (Dev FullStack) fall back to the upstream dev SDD.
+//
+// It is a package global mirroring model.QEInstallerFlow. The cli layer sets it
+// deterministically on every run, so it never depends on a previous run's
+// value; tests that flip it MUST restore it via t.Cleanup.
+var qeTestDesignSDDEnabled = true
+
+// SetQETestDesignSDD toggles the QE test-design SDD override for subsequent
+// QESDDTestingContent calls. Called by the cli install/sync flow.
+func SetQETestDesignSDD(on bool) {
+	qeTestDesignSDDEnabled = on
+}
+
 func QESDDTestingContent(skillID, fileName string) (string, bool) {
+	if !qeTestDesignSDDEnabled {
+		return "", false // gated OFF (e.g. dev persona) → fall open to upstream dev SDD
+	}
 	if !IsSDDSkill(model.SkillID(skillID)) {
 		return "", false
 	}

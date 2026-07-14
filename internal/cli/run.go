@@ -905,6 +905,8 @@ func splitPathForOS(value, goos string) []string {
 func (s componentApplyStep) Run() error {
 	adapters := resolveAdapters(s.agents)
 
+	skills.SetQETestDesignSDD(qeUseTestDesignSDD(s.selection)) // overlay Gentle-QE (ancla qe-overlay)
+
 	switch s.component {
 	case model.ComponentEngram:
 		engramCommand := "engram"
