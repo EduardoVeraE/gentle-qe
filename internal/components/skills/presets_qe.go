@@ -19,11 +19,17 @@ var qaSkills = []model.SkillID{
 }
 
 // qePresetSkills mapea cada preset QE a su set de skills.
+//
+// PresetDevFullStack es el único preset del fork orientado a DESARROLLO: trae
+// las foundationSkills default del upstream (no las QA). Las skills SDD se
+// instalan aparte por el componente SDD; su flavor (dev vs test-design) lo
+// decide el gate por persona, no este mapa.
 var qePresetSkills = map[model.PresetID][]model.SkillID{
-	model.PresetQEFront: {model.SkillPlaywrightE2E, model.SkillA11yPlaywright},
-	model.PresetQEPerf:  {model.SkillK6LoadTest},
-	model.PresetQEAPI:   {model.SkillAPITesting},
-	model.PresetQESDET:  qaSkills, // stack SDET completo
+	model.PresetQEFront:      {model.SkillPlaywrightE2E, model.SkillA11yPlaywright},
+	model.PresetQEPerf:       {model.SkillK6LoadTest},
+	model.PresetQEAPI:        {model.SkillAPITesting},
+	model.PresetQESDET:       qaSkills,         // stack SDET completo
+	model.PresetDevFullStack: foundationSkills, // perfil dev: skills default upstream
 }
 
 // qeAllSkills devuelve todas las skills QE (para AllSkillIDs).

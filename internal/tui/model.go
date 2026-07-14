@@ -2016,6 +2016,9 @@ func (m Model) confirmSelection() (tea.Model, tea.Cmd) {
 		options := screens.PersonaOptions()
 		if m.Cursor < len(options) {
 			m.Selection.Persona = options[m.Cursor]
+			if mm, ok := m.qeAutoSelectDevFullStackPreset(); ok { // (ancla qe-overlay)
+				return mm, nil
+			}
 			// Recompute components if a non-custom preset was already chosen
 			if m.Selection.Preset != "" && m.Selection.Preset != model.PresetCustom {
 				m.Selection.Components = componentsForPreset(m.Selection.Preset, m.Selection.Persona)

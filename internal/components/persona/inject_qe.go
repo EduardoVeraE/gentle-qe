@@ -15,14 +15,21 @@ import (
 
 var htmlCommentRE = regexp.MustCompile(`(?s)<!--.*?-->`)
 
-// qePersonaContent devuelve el contenido de la persona SDET, o "" si la persona
-// no es del overlay. Compone persona-sdet.md con el slot opcional del maintainer
+// qePersonaContent devuelve el contenido de la persona del overlay Gentle-QE, o
+// "" si la persona no es del fork. Cada persona QE resuelve a su propio asset
+// generic net-new; se compone con el slot opcional del maintainer
 // (lineamientos-personales.md), anexándolo solo si tiene contenido real.
 func qePersonaContent(_ model.AgentID, persona model.PersonaID) string {
-	if persona != model.PersonaSDET {
+	var asset string
+	switch persona {
+	case model.PersonaSDET:
+		asset = "generic/persona-sdet.md"
+	case model.PersonaDevFullStack:
+		asset = "generic/persona-devfullstack.md"
+	default:
 		return ""
 	}
-	base := assets.MustRead("generic/persona-sdet.md")
+	base := assets.MustRead(asset)
 	if extra := personalGuidelines(); extra != "" {
 		base = strings.TrimRight(base, "\n") +
 			"\n\n## Lineamientos personales\n\n" + extra + "\n"

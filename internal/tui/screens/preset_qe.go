@@ -65,9 +65,11 @@ func init() {
 	presetLabels[model.PresetQEFront] = "QE · Frontend E2E"
 	presetLabels[model.PresetQEAPI] = "QE · API"
 	presetLabels[model.PresetQEPerf] = "QE · Performance"
+	presetLabels[model.PresetDevFullStack] = "Dev · FullStack"
 
 	presetDescriptions[model.PresetQESDET] = "Stack SDET completo: todas las QE skills + persona SDET"
 	presetDescriptions[model.PresetQEFront] = "E2E frontend con Playwright + accesibilidad"
 	presetDescriptions[model.PresetQEAPI] = "Testing de API / contract testing"
 	presetDescriptions[model.PresetQEPerf] = "Performance/carga con k6"
+	presetDescriptions[model.PresetDevFullStack] = "Perfil dev: skills default del upstream (auto-seleccionado con la persona Dev FullStack)"
 }

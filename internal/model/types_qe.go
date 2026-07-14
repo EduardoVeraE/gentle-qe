@@ -17,9 +17,10 @@ const (
 	SkillSeleniumE2EJava   SkillID = "selenium-e2e-java"
 )
 
-// Persona SDET (su contenido vive en internal/assets/generic/persona-sdet.md).
+// Personas del fork Gentle-QE (su contenido vive en internal/assets/generic/).
 const (
-	PersonaSDET PersonaID = "sdet"
+	PersonaSDET        PersonaID = "sdet"          // persona-sdet.md — perfil QE/testing
+	PersonaDevFullStack PersonaID = "dev-fullstack" // persona-devfullstack.md — perfil dev (Gentleman neutralizado)
 )
 
 // Presets QE.
@@ -28,4 +29,9 @@ const (
 	PresetQEPerf  PresetID = "qe-perf"  // Performance: k6
 	PresetQEAPI   PresetID = "qe-api"   // API/contract testing
 	PresetQESDET  PresetID = "qe-sdet"  // Stack SDET completo: todas las QE skills + PersonaSDET
+
+	// PresetDevFullStack acompaña a PersonaDevFullStack: trae SOLO las
+	// foundationSkills del upstream (sin skills QA). No aparece en el picker de
+	// presets; se auto-selecciona al elegir la persona Dev FullStack.
+	PresetDevFullStack PresetID = "dev-fullstack"
 )

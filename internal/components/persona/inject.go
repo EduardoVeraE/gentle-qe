@@ -506,7 +506,7 @@ func residualChannel(adapter agents.Adapter) bool {
 // personaContent returns the persona asset for the given agent and persona.
 func personaContent(agent model.AgentID, persona model.PersonaID, residualContentAvailable bool) string {
 	switch persona {
-	case model.PersonaSDET: // overlay Gentle-QE (ancla qe-overlay)
+	case model.PersonaSDET, model.PersonaDevFullStack: // overlay Gentle-QE (ancla qe-overlay)
 		return qePersonaContent(agent, persona)
 	case model.PersonaNeutral:
 		return neutralPersonaContent(agent, residualContentAvailable)
