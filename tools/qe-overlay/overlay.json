@@ -28,7 +28,9 @@
     "internal/components/persona/regional_voice_qe_test.go",
     "internal/components/skills/qa_injection_qe_test.go",
     "internal/components/skills/preset_devfullstack_qe_test.go",
+    "internal/components/skills/sdd_gating_qe_test.go",
     "internal/cli/persona_coupling_qe_test.go",
+    "internal/cli/sdd_gating_qe_test.go",
     "internal/assets/skills/_qe-sdd/explore.md",
     "internal/assets/skills/_qe-sdd/propose.md",
     "internal/assets/skills/_qe-sdd/spec.md",
@@ -188,6 +190,14 @@
     {
       "file": "internal/cli/validate.go",
       "mustContain": "qeCouplePersonaPreset"
+    },
+    {
+      "file": "internal/cli/run.go",
+      "mustContain": "SetQETestDesignSDD"
+    },
+    {
+      "file": "internal/cli/sync.go",
+      "mustContain": "SetQETestDesignSDD"
     },
     {
       "file": "internal/tui/model.go",
