@@ -60,7 +60,14 @@ brews:
     commit_msg_template: "chore: update gentle-qe formula to {{ .Tag }}"
     install: |
       bin.install "gentle-qe"
+      bin.install_symlink "gentle-qe" => "evqe"
+      bin.install_symlink "gentle-qe" => "qe"
 
+# Scoop: a diferencia de Homebrew (bin.install_symlink en `brews.install`), goreleaser
+# NO expone el campo `bin` del manifiesto, así que no se pueden declarar los aliases
+# de comando (evqe/qe) que Scoop soporta vía `["gentle-qe.exe", "evqe"]`. El manifiesto
+# sale con `"bin": ["gentle-qe.exe"]`. En Windows el alias corto se documenta como paso
+# manual (README: Set-Alias en el perfil de PowerShell).
 scoops:
   - repository:
       owner: EduardoVeraE

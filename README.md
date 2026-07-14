@@ -42,11 +42,13 @@ scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket
 scoop install gentle-qe
 ```
 
+> **Short aliases.** On macOS/Linux (Homebrew), `gentle-qe` is also installed as `evqe` and `qe`, so every command below works under any of the three names. On Windows (Scoop) only `gentle-qe` is created; to get a short alias, add one to your PowerShell profile, e.g. `Set-Alias evqe gentle-qe`.
+
 ---
 
 ## Basic Usage
 
-Run the installer and follow the interactive prompts to pick your AI agents and a QE preset:
+Run the installer and follow the interactive prompts to pick your AI agents and a persona (SDET or Dev FullStack) — choosing the persona is the only decision; it installs the matching stack automatically:
 
 ```bash
 gentle-qe install
@@ -70,8 +72,10 @@ gentle-qe doctor
 
 ## What You Get
 
-- **SDET persona** — ISTQB, shift-left, risk-based thinking, instead of a generic coding assistant.
-- **QE skills**, ready to use in your agent:
+- **Personas** — pick one on install; it auto-selects the matching stack and skips the preset screen:
+  - **SDET** — ISTQB, shift-left, risk-based testing, with the full QE stack (all skills below) and a test-design SDD cycle.
+  - **Dev FullStack** — a development profile (Senior Full-Stack Architect, teaching-first) with the upstream foundation skills and the standard development SDD cycle.
+- **QE skills** (SDET persona), ready to use in your agent:
 
   | Skill | Focus |
   | --- | --- |
@@ -83,7 +87,7 @@ gentle-qe doctor
   | k6 load testing | Load, stress, spike, and soak scenarios |
   | Selenium (Java) | End-to-end testing with WebDriver |
 
-- **Presets** that bundle these skills into ready-made stacks: `qe-sdet` (full stack, default), `qe-front` (E2E + accessibility), `qe-api` (API/contract testing), `qe-perf` (performance).
+- **Presets** bundle these skills into ready-made stacks. The SDET persona uses `qe-sdet` (full stack) by default. Narrower presets — `qe-front` (E2E + accessibility), `qe-api` (API/contract testing), `qe-perf` (performance) — are available via the CLI: `gentle-qe install --preset qe-front`.
 
 ---
 
