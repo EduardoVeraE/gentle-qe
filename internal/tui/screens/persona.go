@@ -30,7 +30,7 @@ func RenderPersona(selected model.PersonaID, cursor int) string {
 	for idx, persona := range PersonaOptions() {
 		isSelected := persona == selected
 		focused := idx == cursor
-		b.WriteString(renderRadio(string(persona), isSelected, focused))
+		b.WriteString(renderRadio(qePersonaLabel(persona), isSelected, focused)) // (ancla qe-overlay)
 		b.WriteString(styles.SubtextStyle.Render("    " + personaDescriptions[persona]))
 		b.WriteString("\n")
 	}
