@@ -23,9 +23,12 @@
     "internal/tui/styles/logo_qe.go",
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
+    "internal/assets/generic/persona-devfullstack.md",
     "internal/assets/generic/lineamientos-personales.md",
     "internal/components/persona/regional_voice_qe_test.go",
     "internal/components/skills/qa_injection_qe_test.go",
+    "internal/components/skills/preset_devfullstack_qe_test.go",
+    "internal/cli/persona_coupling_qe_test.go",
     "internal/assets/skills/_qe-sdd/explore.md",
     "internal/assets/skills/_qe-sdd/propose.md",
     "internal/assets/skills/_qe-sdd/spec.md",
@@ -181,6 +184,14 @@
     {
       "file": "internal/cli/validate.go",
       "mustContain": "qeDefaultPreset"
+    },
+    {
+      "file": "internal/cli/validate.go",
+      "mustContain": "qeCouplePersonaPreset"
+    },
+    {
+      "file": "internal/tui/model.go",
+      "mustContain": "qeAutoSelectDevFullStackPreset"
     },
     {
       "file": "internal/cli/validate.go",

@@ -11,13 +11,14 @@ import (
 // the upstream persona_preset_test.go is not an overlay file, so QE-only
 // assertions live here instead of editing it (zero upstream content edits).
 
-// TestPersonaOptions_QEBuildContainsOnlySDET verifies PersonaOptions() in the
-// QE build returns exactly [PersonaSDET] — no dev persona ID present.
-func TestPersonaOptions_QEBuildContainsOnlySDET(t *testing.T) {
+// TestPersonaOptions_QEBuildContainsQEPersonas verifies PersonaOptions() in the
+// QE build returns exactly [PersonaSDET, PersonaDevFullStack] (SDET first =
+// default) — no upstream dev persona ID present.
+func TestPersonaOptions_QEBuildContainsQEPersonas(t *testing.T) {
 	enableQESeam(t)
 	got := PersonaOptions()
 
-	want := []model.PersonaID{model.PersonaSDET}
+	want := []model.PersonaID{model.PersonaSDET, model.PersonaDevFullStack}
 	if len(got) != len(want) {
 		t.Fatalf("PersonaOptions() = %v (len %d), want %v (len %d)", got, len(got), want, len(want))
 	}
@@ -31,7 +32,7 @@ func TestPersonaOptions_QEBuildContainsOnlySDET(t *testing.T) {
 	for _, d := range dev {
 		for _, p := range got {
 			if p == d {
-				t.Fatalf("PersonaOptions() = %v, must not contain dev persona %q", got, d)
+				t.Fatalf("PersonaOptions() = %v, must not contain upstream dev persona %q", got, d)
 			}
 		}
 	}
@@ -76,8 +77,14 @@ func TestQEFilterPersonaOptions_IgnoresDevInput(t *testing.T) {
 	devOnly := []model.PersonaID{model.PersonaGentleman, model.PersonaCustom}
 	got := qeFilterPersonaOptions(devOnly)
 
-	if len(got) != 1 || got[0] != model.PersonaSDET {
-		t.Fatalf("qeFilterPersonaOptions(%v) = %v, want [PersonaSDET]", devOnly, got)
+	want := []model.PersonaID{model.PersonaSDET, model.PersonaDevFullStack}
+	if len(got) != len(want) {
+		t.Fatalf("qeFilterPersonaOptions(%v) = %v, want %v", devOnly, got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("qeFilterPersonaOptions(%v)[%d] = %q, want %q", devOnly, i, got[i], want[i])
+		}
 	}
 }
 

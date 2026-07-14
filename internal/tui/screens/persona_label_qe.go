@@ -19,6 +19,8 @@ func qePersonaLabel(p model.PersonaID) string {
 	switch p {
 	case model.PersonaSDET:
 		return "SDET"
+	case model.PersonaDevFullStack:
+		return "Dev FullStack"
 	default:
 		return string(p)
 	}

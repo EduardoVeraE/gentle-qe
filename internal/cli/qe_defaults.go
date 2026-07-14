@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/gentleman-programming/gentle-ai/internal/model"
+import (
+	"strings"
+
+	"github.com/gentleman-programming/gentle-ai/internal/model"
+)
 
 // qe_defaults.go — defaults y validación del overlay SDET/QE (Gentle-QE).
 //
@@ -15,15 +19,32 @@ const (
 
 // isQEPersona indica si el valor es una persona válida del overlay.
 func isQEPersona(p model.PersonaID) bool {
-	return p == model.PersonaSDET
+	switch p {
+	case model.PersonaSDET, model.PersonaDevFullStack:
+		return true
+	default:
+		return false
+	}
 }
 
 // isQEPreset indica si el valor es un preset válido del overlay.
 func isQEPreset(p model.PresetID) bool {
 	switch p {
-	case model.PresetQESDET, model.PresetQEFront, model.PresetQEAPI, model.PresetQEPerf:
+	case model.PresetQESDET, model.PresetQEFront, model.PresetQEAPI, model.PresetQEPerf, model.PresetDevFullStack:
 		return true
 	default:
 		return false
 	}
+}
+
+// qeCouplePersonaPreset acopla la persona Dev FullStack a su preset dev en el
+// flujo CLI (paridad con el auto-select del TUI): si se pidió
+// --persona dev-fullstack SIN --preset explícito, deriva PresetDevFullStack
+// (foundationSkills upstream) en vez del default QE (SDET). Con --preset
+// explícito se respeta la elección del usuario.
+func qeCouplePersonaPreset(persona model.PersonaID, resolved model.PresetID, rawPresetFlag string) model.PresetID {
+	if persona == model.PersonaDevFullStack && strings.TrimSpace(rawPresetFlag) == "" {
+		return model.PresetDevFullStack
+	}
+	return resolved
 }

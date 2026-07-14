@@ -122,6 +122,31 @@ func qeWelcomeCanonicalCursor(m Model, collapsed int) int {
 	return canonical
 }
 
+// qeAutoSelectDevFullStackPreset couples persona→preset in the QE build ONLY:
+// when the user picks the Dev FullStack persona, it fixes that persona's preset
+// (upstream foundationSkills) and jumps straight to the install-plan screen,
+// skipping the preset picker and the intermediate pickers the QE build already
+// suppresses (qeFilterPickerFlow / qeSuppress*). It mirrors the piOnly shortcut
+// in confirmSelection's ScreenAgents case (model.go).
+//
+// Returns (m, true) when the shortcut applied; (m, false) when it does not
+// apply (a different persona, or seam OFF), leaving the normal ScreenPreset
+// flow untouched — so SDET keeps choosing its preset as before.
+//
+// This helper depends on the QE-build invariant "suppressed pickers → the
+// preset step falls straight through to DependencyTree"; if the QE build ever
+// re-enables an intermediate picker for dev personas, revisit this jump.
+func (m Model) qeAutoSelectDevFullStackPreset() (Model, bool) {
+	if !model.QEInstallerFlow || m.Selection.Persona != model.PersonaDevFullStack {
+		return m, false
+	}
+	m.Selection.Preset = model.PresetDevFullStack
+	m.Selection.Components = componentsForPreset(model.PresetDevFullStack, m.Selection.Persona)
+	m.buildDependencyPlan()
+	m.setScreen(ScreenDependencyTree)
+	return m, true
+}
+
 // qeCanonicalIndexForLabel finds label's position in full — the real,
 // current upstream Welcome menu — by CONTENT, never by position. This is the
 // entire mechanism that makes qeWelcomeCanonicalCursor immune to upstream

@@ -20,6 +20,15 @@ func TestQEPersonaLabel_SeamOn_UppercasesSDET(t *testing.T) {
 	}
 }
 
+// TestQEPersonaLabel_SeamOn_DevFullStack: la persona Dev FullStack se muestra
+// con su label legible (no el id crudo "dev-fullstack").
+func TestQEPersonaLabel_SeamOn_DevFullStack(t *testing.T) {
+	enableQESeam(t)
+	if got := qePersonaLabel(model.PersonaDevFullStack); got != "Dev FullStack" {
+		t.Fatalf("qePersonaLabel(DevFullStack) seam ON = %q, want %q", got, "Dev FullStack")
+	}
+}
+
 // TestQEPersonaLabel_SeamOff_ReturnsRaw: con el seam OFF (parity upstream), el
 // helper devuelve el string crudo — para SDET y para las personas upstream, así
 // los contract tests que esperan labels literales no se rompen.

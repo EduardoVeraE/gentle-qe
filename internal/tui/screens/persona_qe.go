@@ -10,7 +10,7 @@ import "github.com/gentleman-programming/gentle-ai/internal/model"
 // build QE siempre devuelve únicamente las personas QE, nunca un append.
 
 func qeFilterPersonaOptions(_ []model.PersonaID) []model.PersonaID {
-	return []model.PersonaID{model.PersonaSDET}
+	return []model.PersonaID{model.PersonaSDET, model.PersonaDevFullStack}
 }
 
 // qePersonaOptionsForBuild is the seam-aware entry the PersonaOptions anchor
@@ -27,4 +27,5 @@ func qePersonaOptionsForBuild(opts []model.PersonaID) []model.PersonaID {
 
 func init() {
 	personaDescriptions[model.PersonaSDET] = "Persona SDET: testing senior, ISTQB y shift-left"
+	personaDescriptions[model.PersonaDevFullStack] = "Persona Dev FullStack: arquitecto full-stack, teaching-first (skills del upstream)"
 }

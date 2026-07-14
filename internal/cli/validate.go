@@ -36,6 +36,7 @@ func NormalizeInstallFlags(flags InstallFlags, detection system.DetectionResult)
 		return InstallInput{}, err
 	}
 	selection.Preset = preset
+	selection.Preset = qeCouplePersonaPreset(selection.Persona, selection.Preset, flags.Preset) // overlay Gentle-QE (ancla qe-overlay)
 
 	components, err := normalizeComponents(flags.Components, selection.Preset, selection.Persona)
 	if err != nil {
