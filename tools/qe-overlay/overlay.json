@@ -21,6 +21,7 @@
     "internal/tui/screens/persona_label_qe.go",
     "internal/tui/screens/persona_label_qe_test.go",
     "internal/tui/styles/logo_qe.go",
+    "internal/tui/styles/logo_qe_test.go",
     "internal/cli/qe_defaults.go",
     "internal/assets/generic/persona-sdet.md",
     "internal/assets/generic/persona-devfullstack.md",
@@ -154,6 +155,10 @@
     {
       "file": "internal/tui/screens/welcome.go",
       "mustContain": "qeCaptureFullWelcomeOptions"
+    },
+    {
+      "file": "internal/tui/screens/welcome.go",
+      "mustContain": "styles.RenderLogoFit(width, height)"
     },
     {
       "file": "internal/tui/model.go",
