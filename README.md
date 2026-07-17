@@ -35,12 +35,15 @@ Supports 15+ AI coding agents, including Claude Code, Cursor, OpenCode, Gemini C
 ```bash
 # macOS / Linux
 brew tap EduardoVeraE/homebrew-tap
+brew trust --formula EduardoVeraE/homebrew-tap/gentle-qe  # Homebrew >= 6.0
 brew install gentle-qe
 
 # Windows
 scoop bucket add eduardoverae https://github.com/EduardoVeraE/scoop-bucket
 scoop install gentle-qe
 ```
+
+> **Homebrew 6.0 tap trust.** Since Homebrew 6.0, formulae from third-party taps must be explicitly trusted before they can be installed — that is what the `brew trust` line does (older Homebrew versions can skip it). Alternatively, a fully-qualified install trusts just this formula in one step: `brew install EduardoVeraE/homebrew-tap/gentle-qe`.
 
 > **Short aliases.** On macOS/Linux (Homebrew), `gentle-qe` is also installed as `evqe` and `qe`, so every command below works under any of the three names. On Windows (Scoop) only `gentle-qe` is created; to get a short alias, add one to your PowerShell profile, e.g. `Set-Alias evqe gentle-qe`.
 
