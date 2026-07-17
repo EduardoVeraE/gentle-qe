@@ -83,7 +83,7 @@ func RenderWelcomeWithWidth(cursor int, version string, updateBanner string, upd
 func RenderWelcomeWithAdvisory(cursor int, version string, updateBanner string, updateResults []update.UpdateResult, updateCheckDone bool, showProfiles bool, profileCount int, hasEngines bool, width int, height int, advisory WelcomeAdvisory) string {
 	var b strings.Builder
 
-	b.WriteString(styles.RenderLogo())
+	b.WriteString(styles.RenderLogoFit(width, height)) // overlay Gentle-QE (ancla qe-overlay)
 	b.WriteString("\n\n")
 	b.WriteString(styles.SubtextStyle.Render(styles.Tagline(version)))
 	b.WriteString("\n")

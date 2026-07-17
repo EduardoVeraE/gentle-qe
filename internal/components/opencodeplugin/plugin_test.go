@@ -127,6 +127,7 @@ func TestInstallGentleLogoWritesLocalTUIPluginAndRegistersAbsolutePath(t *testin
 		`home_logo`,
 		`const plugin = { id: "gentle-logo", tui }`,
 		`export default plugin`,
+		`"#0A91B2"`, // Gentle-QE brand color replaces magenta
 	} {
 		if !strings.Contains(pluginContent, snippet) {
 			t.Fatalf("plugin missing snippet %q", snippet)
